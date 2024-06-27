@@ -19,21 +19,21 @@
 * Status bar no longer rolls over and updates based on .xbt progress
 * Moved operational modes from protected user directories to \temp folder with auto cleanup on exit
 
-### <ins>Installation</ins> ( 2 options )
+### <ins>Installation</ins>
 
 The x32 and x64 are basically portable and do not require installation, click and run.
 
 ### <ins>Translations</ins>
-As of now, this only supports US English. No translations at this time. Maybe in the future, I will find a way to incorporate other languages.
+As of now, this only supports US English. No translations at this time. I will put it in the roadmap to find a way to incorporate other languages.
 
 ### <ins>Credits</ins>
 To: SUUP's work, of which this is a continuation.
 
-### <ins>Further information</ins>
+### <ins>Further Information</ins>
 See https://forum.kodi.tv/showthread.php?tid=377635 for more information.
 
 ### <ins>License</ins>
-Please make sure you observe the skin's license. All parts, including textures, are for non-commercial use.
+Please make sure you observe the program's license. All parts, including textures, are for non-commercial use.
 
 ### <ins>Contact</ins>
 Support should only be obtained via the forum link: https://forum.kodi.tv/showthread.php?tid=377635 
