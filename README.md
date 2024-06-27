@@ -6,6 +6,10 @@
     <img width="50%" src="https://github.com/kittmaster/KodiTextureTool/blob/main/kodi.png">
 </p>
 
+<p align="center" width="100%">
+    <img width="50%" src="https://github.com/kittmaster/KodiTextureTool/blob/main/Screenshot.png">
+</p>
+
 <p align="center">Updated GUI packer and unpacker for Kodi texture files.</p>
 
 ### <ins>Features</ins>
