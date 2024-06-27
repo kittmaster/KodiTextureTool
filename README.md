@@ -1,4 +1,4 @@
-## <p align="center"> <ins>Texture Tool for Kodi</ins></p>
+## <p align="center"> <ins>Texture Tool for Kodi 2024+</ins></p>
 
 <!--  ![Madnox Logo](https://github.com/kittmaster/KittmasterRepo/blob/master/repo/skin.madnox/resources/icon.png) -->
 
