@@ -3,7 +3,7 @@
 <!--  ![Madnox Logo](https://github.com/kittmaster/KittmasterRepo/blob/master/repo/skin.madnox/resources/icon.png) -->
 
 <p align="center" width="100%">
-    <img width="50%" src="https://github.com/kittmaster/KittmasterRepo/blob/master/repo/skin.madnox/resources/icon.png">
+    <img width="50%" src="https://github.com/kittmaster/KodiTextureTool/blob/main/kodi.png">
 </p>
 
 <p align="center">Updated GUI packer and unpacker for Kodi texture files.</p>
