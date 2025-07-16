@@ -1,0 +1,10 @@
+{
+  "latest_version": "v3.2.0",
+  "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/latest",
+  "changelog": [
+    "Added silent, non-intrusive tray notifications for the startup update check.",
+    "Fixed a critical bug where whitespace in file paths would cause compile operations to fail.",
+    "Improved overall stability of the background worker threads.",
+    "Enhanced UI responsiveness during long operations."
+  ]
+}
