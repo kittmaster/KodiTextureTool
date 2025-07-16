@@ -1,10 +1,15 @@
 {
-  "latest_version": "v3.1.1",
-  "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/latest",
+  "latest_version": "v3.2.0",
+  "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.2.0",
+  "update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.2.0/KodiTextureTool_v3.2.0.zip",
   "changelog": [
-    "Added silent, non-intrusive tray notifications for the startup update check.",
-    "Fixed a critical bug where whitespace in file paths would cause compile operations to fail.",
-    "Improved overall stability of the background worker threads.",
-    "Enhanced UI responsiveness during long operations."
+	"- Implemented a non-blocking update checker.",
+	"- Added automatic update check on startup.",
+	"- Enabled manual "Check for Updates" in About dialog and Help menu.",
+	"- Added a local "View Changelog" feature accessible from the Help menu.",
+    "- Implemented thread-safe, in-app auto-updater.",
+    "- Added application icons to all dialog boxes.",
+    "- Fixed application hang when update dialogs appeared.",
+    "- Corrected notification titles and improved stability."
   ]
 }
