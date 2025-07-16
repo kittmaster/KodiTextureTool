@@ -1,5 +1,5 @@
 {
-  "latest_version": "v3.2.0",
+  "latest_version": "v3.1.1",
   "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/latest",
   "changelog": [
     "Added silent, non-intrusive tray notifications for the startup update check.",
