@@ -1,7 +1,7 @@
 {
   "latest_version": "v3.2.0",
   "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.2.0",
-  "update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.2.0/KodiTextureTool_v3.2.0.zip",
+  "update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.2.0/KodiTextureTool_Release_v3.2.0.zip",
   "changelog": [
     "- Implemented a non-blocking update checker.",
     "- Added automatic update check on startup.",
