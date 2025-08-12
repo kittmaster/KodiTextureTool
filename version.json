@@ -3,8 +3,8 @@
   "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.2.0",
   "update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.2.0/KodiTextureTool_Release_v3.2.0.zip",
   "changelog": [
-	"- Converted original AutoIt script to Python and PySide6.",
-	"- Implemented a non-blocking update checker.",
+    "- Converted original AutoIt script to Python and PySide6.",
+    "- Implemented a non-blocking update checker.",
     "- Added automatic update check on startup.",
     "- Enabled manual 'Check for Updates' in About dialog and Help menu.",
     "- Added a local 'View Changelog' feature accessible from the Help menu.",
@@ -14,4 +14,3 @@
     "- Corrected notification titles and improved stability."
   ]
 }
-
