@@ -1,11 +1,11 @@
 ## <p align="center"><ins><strong>🎨 Texture Tool for Kodi 2024+</strong></ins></p>
 
 <p align="center">
-  <img width="120" src="https://github.com/kittmaster/KodiTextureTool/blob/main/kodi.png" alt="Kodi Texture Tool Icon">
+  <img width="120" src="https://github.com/kittmaster/KodiTextureTool/blob/main/assets/kodi_logo_96.png" alt="Kodi Texture Tool Icon">
 </p>
 
 <p align="center">
-  <img src="https://github.com/kittmaster/KodiTextureTool/blob/main/Screenshot.png" alt="Texture Tool GUI Screenshot">
+  <img src="https://github.com/kittmaster/KodiTextureTool/blob/main/assets/MainImage.png" alt="Texture Tool GUI Screenshot">
 </p>
 
 <p align="center"><em>Updated GUI packer and unpacker for Kodi texture files</em></p>
