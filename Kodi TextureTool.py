@@ -1,4 +1,4 @@
-# PATCHED_BY_SCRIPT_VERSION: v3.3.97 | Fix jagged icon scaling in UpdateDialog by matching QLabel size to the smooth-scaled QPixmap.
+# PATCHED_BY_SCRIPT_VERSION: v3.5.6 | Ensures short paths are converted to long paths before deletion for accurate logging.
 
 # -*- coding: utf-8 -*-
 
@@ -322,7 +322,8 @@ class UpdateProgressDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Downloading Update")
+        #self.setWindowTitle("Downloading Update")
+        self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Downloading Update")
         self.setWindowIcon(parent.app_icon if parent else QIcon())
         self.setMinimumWidth(400)
         self.setModal(True)
@@ -384,7 +385,8 @@ class CustomHelpDialog(QDialog):
     def __init__(self, parent=None):
 
         super().__init__(parent)
-        self.setWindowTitle("Help & Support")
+        #self.setWindowTitle("Help & Support")
+        self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Help & Support")
         self.setWindowIcon(parent.app_icon if parent else QIcon())
         self.setFixedSize(400, 200)
 
@@ -422,7 +424,8 @@ class CustomAboutDialog(QDialog):
     def __init__(self, parent=None):
         '''Initializes the About dialog with a new, cleaner layout.'''
         super().__init__(parent)
-        self.setWindowTitle(f"About {APP_TITLE}")
+        #self.setWindowTitle(f"About {APP_TITLE}")
+        self.setWindowTitle(f"About {APP_TITLE} - {APP_VERSION}")
         self.setWindowIcon(parent.app_icon if parent else QIcon())
         self.setFixedSize(500, 220)
 
@@ -793,10 +796,10 @@ class TextureToolApp(QMainWindow):
         self.decompile_input_file, self.decompile_output_folder, self.compile_input_folder, self.compile_output_file = "", "", "", ""
         self.aDiagnosticMessages = []
         self.update_action = None
+        self.vcredist_checks_passed = False # Pre-initialize attribute to prevent crash
         self.update_thread, self.update_worker = None, None
         self.update_check_complete.connect(self._handle_update_ui)
         self._load_settings()
-        self._perform_startup_checks()
 
         # --- DEPENDENCY CHECK (Moved after logger is initialized) ---
         try:
@@ -816,6 +819,7 @@ class TextureToolApp(QMainWindow):
             self._log_message(f"[INFO] Removed leftover temporary directory: {os.path.normpath(temp_dir_to_clean)}")
         self._setup_temp_workspace()
         atexit.register(self._cleanup_workspace)
+        self._perform_startup_checks()
         self._populate_initial_log()
     def _update_button_states(self):
         # --- Decompile Mode ---
@@ -968,6 +972,13 @@ class TextureToolApp(QMainWindow):
             self._add_diagnostic_message("[WARN] Decompile & Compile functions are disabled until runtimes are properly installed.")
             self._add_diagnostic_message("[WARN] Use the 'Display -> Install Runtimes' menu option to resolve this issue.")
             self._show_vcredist_notification()
+
+        # --- THE FIX: Update the menu item's state NOW ---
+        if self.update_action:
+            self.update_action.setEnabled(self.vcredist_checks_passed)
+            if self.vcredist_checks_passed:
+                self.update_action.setToolTip("Manually check for new application updates")
+
         self._add_diagnostic_message("[INFO] Set DEV hot key sequence... Complete")
         self._add_diagnostic_message('[INFO] To enable DEV Mode press and hold the keyboard sequence: "Shift" > "Alt" > "D"')
         self._add_diagnostic_message("[INFO] Getting file metadata & information.")
@@ -1027,7 +1038,7 @@ class TextureToolApp(QMainWindow):
     def _setup_ui(self):
         from PySide6.QtGui import QKeySequence, QShortcut
 
-        self.setWindowTitle(f"{APP_TITLE} {APP_VERSION}")
+        self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION}")
         self.setWindowIcon(QIcon(get_resource_path("assets/fav.ico")))
         self.setMinimumSize(1410, 920)
         try:
@@ -1372,7 +1383,7 @@ class TextureToolApp(QMainWindow):
         bottom_controls_layout.addSpacing(32)
         bottom_controls_layout.setContentsMargins(0, 0, 0, 0)
         bottom_controls_layout.addWidget(self.export_pdf_btn)
-        bottom_controls_layout.addSpacing(50)
+        bottom_controls_layout.addSpacing(51)
         bottom_controls_layout.addStretch(0)
         bottom_controls_layout.addWidget(jump_to_label)
         bottom_controls_layout.addWidget(self.search_criteria_combo)
@@ -1588,7 +1599,7 @@ QSplitter::handle:vertical:hover {
         self.decompile_worker = Worker(command, process_cwd, show_window=False)
         self.decompile_worker.moveToThread(self.decompile_thread)
 
-        self.decompile_worker.progress_updated.connect(self._update_progress_from_worker)
+        self.decompile_worker.progress_updated.connect(functools.partial(self._update_progress_from_worker, prefix="Decompiling"))
 
         self.decompile_thread.started.connect(self.decompile_worker.run)
         self.decompile_worker.finished.connect(lambda code, out: self._on_process_finished(task_name, code, out))
@@ -1618,12 +1629,20 @@ QSplitter::handle:vertical:hover {
                 if item_name.startswith(prefix):
                     item_path = os.path.join(temp_dir, item_name)
                     if os.path.isdir(item_path):
+                        # --- FIX: Convert path to long name BEFORE deleting it ---
+                        long_item_path = item_path
+                        if sys.platform == "win32":
+                            buffer = ctypes.create_unicode_buffer(512)
+                            # This API call only works if the path exists.
+                            if ctypes.windll.kernel32.GetLongPathNameW(item_path, buffer, 512):
+                                long_item_path = buffer.value
+                        # --- END FIX ---
                         try:
                             shutil.rmtree(item_path)
-                            self._log_message(f"[INFO] Removed orphaned cache directory: {item_path}")
+                            self._log_message(f"[INFO] Removed orphaned cache directory: {long_item_path}")
                             found_and_cleaned += 1
                         except Exception as e:
-                            self._log_message(f"[WARN] Could not remove old cache directory '{item_path}': {e}")
+                            self._log_message(f"[WARN] Could not remove old cache directory '{long_item_path}': {e}")
             if found_and_cleaned == 0:
                 self._log_message("[INFO] No old info caches found to clean up.")
         except Exception as e:
@@ -1783,7 +1802,7 @@ QSplitter::handle:vertical:hover {
         self.compile_worker = Worker(command_parts, process_cwd)
         self.compile_worker.moveToThread(self.compile_thread)
 
-        self.compile_worker.progress_updated.connect(self._update_progress_from_worker)
+        self.compile_worker.progress_updated.connect(functools.partial(self._update_progress_from_worker, prefix="Compiling"))
 
         self.compile_thread.started.connect(self.compile_worker.run)
         self.compile_worker.finished.connect(lambda code, out: self._on_process_finished("compile", code, out))
@@ -1892,87 +1911,87 @@ QSplitter::handle:vertical:hover {
             self.status_label.setText(f"Error during {task_name} (Code: {return_code})")
             self._show_tray_message(APP_TITLE, f"Error during {task_name}", QSystemTrayIcon.MessageIcon.Warning)        
         self._reset_ui_after_task()
-
     def _install_runtimes(self):
-        task_is_active = any(
-            thread is not None
-            for thread in (self.decompile_thread, self.compile_thread, self.info_thread, self.installer_thread)
-        )
-        if task_is_active:
-            self._log_message("[WARN] Another task is already in progress. Please wait.")
-            return
-
+        """Launches the runtime installer with elevation and monitors for completion."""
+        self._log_message("[INFO] Starting runtime installation...")
         if sys.platform != "win32":
             self._log_message("[WARN] Runtime installer is only available on Windows.")
+            return
+
+        if any(t is not None for t in (self.decompile_thread, self.compile_thread, self.info_thread, self.installer_thread)):
+            self._log_message("[WARN] Another task is already in progress. Please wait.")
             return
 
         installer_path = get_resource_path(os.path.join("runtimes", "Install_all.bat"))
         if not os.path.exists(installer_path):
             self._log_message(f"[ERROR] Runtime installer not found at: {installer_path}")
             return
+
         self._set_ui_task_active(True)
-        self._log_message("[INFO] Minimizing main window to show installer.")
-        self.showMinimized()
-        self._log_message(f"[LOAD] Requesting elevation to launch installer: {installer_path}")
-        if self.update_action:
-            self.update_action.setEnabled(False)
-        if hasattr(self, 'status_label'):
-            self.status_label.setText("Waiting for installer to finish...")
+        self._log_message(f"[INFO] Requesting elevation to launch installer: {installer_path}")
+        self.status_label.setText("Waiting for installer to finish...")
+
         class ShellExecuteInfo(ctypes.Structure):
-            _fields_ = [("cbSize", wintypes.DWORD), ("fMask", ctypes.c_ulong), ("hwnd", wintypes.HWND), ("lpVerb", ctypes.c_wchar_p), ("lpFile", ctypes.c_wchar_p), ("lpParameters", ctypes.c_wchar_p), ("lpDirectory", ctypes.c_wchar_p), ("nShow", ctypes.c_int), ("hInstApp", wintypes.HINSTANCE), ("lpIDList", ctypes.c_void_p), ("lpClass", ctypes.c_wchar_p), ("hkeyClass", wintypes.HKEY), ("dwHotKey", wintypes.DWORD), ("hIcon", wintypes.HANDLE), ("hProcess", wintypes.HANDLE)]
+            _fields_ = [
+                ("cbSize", wintypes.DWORD), ("fMask", ctypes.c_ulong), ("hwnd", wintypes.HWND),
+                ("lpVerb", ctypes.c_wchar_p), ("lpFile", ctypes.c_wchar_p), ("lpParameters", ctypes.c_wchar_p),
+                ("lpDirectory", ctypes.c_wchar_p), ("nShow", ctypes.c_int), ("hInstApp", wintypes.HINSTANCE),
+                ("lpIDList", ctypes.c_void_p), ("lpClass", ctypes.c_wchar_p), ("hkeyClass", wintypes.HKEY),
+                ("dwHotKey", wintypes.DWORD), ("hIcon", wintypes.HANDLE), ("hProcess", wintypes.HANDLE),
+            ]
+
         info = ShellExecuteInfo()
         info.cbSize = ctypes.sizeof(info)
-        info.fMask = 64
+        info.fMask = 0x00000040 # SEE_MASK_NOCLOSEPROCESS
         info.hwnd = self.winId()
-        info.lpVerb = "open"
+        info.lpVerb = "runas" # Request elevation
         info.lpFile = installer_path
         info.lpParameters = None
-        info.nShow = 1
+        info.nShow = 1 # SW_SHOWNORMAL
+
         if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(info)):
             self._log_message("[ERROR] Failed to start installer process. The request may have been cancelled.")
-            if self.update_action:
-                self.update_action.setEnabled(self.vcredist_checks_passed)
-            if hasattr(self, 'status_label'):
-                self.status_label.setText("Installer launch failed.")
-            self.showNormal()
-            self.activateWindow()
             self._set_ui_task_active(False)
+            self.status_label.setText("Installer launch failed.")
             return
-        self.installer_thread = QThread()
+
+        self.installer_thread = QThread(self)
         self.installer_worker = ProcessMonitorWorker(info.hProcess)
         self.installer_worker.moveToThread(self.installer_thread)
         self.installer_thread.started.connect(self.installer_worker.run)
         self.installer_worker.finished.connect(self._on_installer_finished)
-        self.installer_worker.error.connect(self._on_installer_finished)
+        self.installer_worker.error.connect(self._on_installer_finished) # Error also calls finished
         self.installer_worker.finished.connect(self.installer_thread.quit)
         self.installer_worker.finished.connect(self.installer_worker.deleteLater)
         self.installer_thread.finished.connect(self.installer_thread.deleteLater)
         self.installer_thread.start()
     def _on_installer_finished(self, error_msg=""):
+        """Handles the completion of the runtime installer process."""
         if error_msg:
-            self._log_message(f"[ERROR] Installer process exited with an error: {error_msg}")
+            self._log_message(f"[ERROR] Installer monitoring failed: {error_msg}")
+            self.status_label.setText("Installer finished with an error.")
+            self._show_tray_message(APP_TITLE, "Runtime Installation Failed", QSystemTrayIcon.MessageIcon.Warning)
         else:
-            self._log_message("[LOAD] Runtime installer process finished.")
+            self._log_message("[INFO] Runtime installer process finished successfully.")
+            self.status_label.setText("Installer finished.")
+            self._show_tray_message(APP_TITLE, "Runtime Installation Complete", QSystemTrayIcon.MessageIcon.Information)
+            # Re-check vcredist status after installation
+            self._log_message("[INFO] Re-checking Visual C++ Redistributable status after installation.")
+            self.vcredist_checks_passed = self._check_vcredist_installed()
+            if self.vcredist_checks_passed:
+                self._log_message("[INFO] Visual C++ Redistributable check: [Passed] after installation.")
+            else:
+                self._log_message("[ERROR] Visual C++ Redistributable check: [Failed] after installation. Please check log for details.")
+        self._reset_ui_after_task()
 
-        self.vcredist_checks_passed = self._check_vcredist_installed()
+        # --- THE FIX: Update the menu item's state after successful installation ---
         if self.update_action:
             self.update_action.setEnabled(self.vcredist_checks_passed)
-        
-        if self.vcredist_checks_passed:
-            self._log_message("[INFO] Runtimes successfully detected after installation attempt.")
-            self._log_message("[INFO] Warnings will reset on application restart. Restart not required to proceed.")
-            if not error_msg:
-                self._log_message("[INFO] Triggering post-install update check.")
-                self._check_for_updates(manual=False)
-        else:
-            self._log_message("[WARN] Runtimes are still not detected. Please try installing again from the Display menu.")
+            if self.vcredist_checks_passed:
+                self.update_action.setToolTip("Manually check for new application updates")
 
-        self._log_message("[INFO] Restoring main window.")
-        self.showNormal()
-        self.activateWindow()
-        self._reset_ui_after_task()
-        if hasattr(self, 'status_label'): # Check if UI is fully loaded
-            self._update_status_label() # Update status after potential state change
+        self._update_button_states() # Update button states based on new vcredist status
+
     def _reload_all(self):
         """Reloads the most recent item from each category if available."""
         self._log_message("[INFO] Reloading last used paths from recent items...")
@@ -2177,7 +2196,7 @@ QSplitter::handle:vertical:hover {
         self.open_pdf_on_complete_action.triggered.connect(self._toggle_open_pdf_on_complete)
         display_menu.addAction(self.open_pdf_on_complete_action)
         display_menu.addSeparator()
-        self.log_position_action = QAction("Log Window on Top", self)
+        self.log_position_action = QAction("Swap Log Viewer/Image Previewer Position", self)
         self.log_position_action.setToolTip("Toggle the position of the log viewer (top or bottom)")
         self.log_position_action.setCheckable(True)
         self.log_position_action.setChecked(self.log_on_top)
@@ -2194,11 +2213,6 @@ QSplitter::handle:vertical:hover {
         clear_log_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton))
         clear_log_action.triggered.connect(self._clear_log)
         display_menu.addAction(clear_log_action)
-        install_runtimes_action = QAction("&Install Runtimes", self)
-        install_runtimes_action.setToolTip("Install the required Visual C++ 2010 Runtimes (requires administrator)")
-        install_runtimes_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
-        install_runtimes_action.triggered.connect(self._install_runtimes)
-        display_menu.addAction(install_runtimes_action)
         options_menu = menu_bar.addMenu("&Options")
         self.update_check_on_startup_action = QAction("Check for Updates on Startup", self)
         self.update_check_on_startup_action.setToolTip("Enable or disable automatic update checks when the application starts")
@@ -2206,6 +2220,11 @@ QSplitter::handle:vertical:hover {
         self.update_check_on_startup_action.setChecked(self.check_for_updates_on_startup)
         self.update_check_on_startup_action.triggered.connect(self._toggle_update_check_on_startup)
         options_menu.addAction(self.update_check_on_startup_action)
+        install_runtimes_action = QAction("&Install Runtimes", self)
+        install_runtimes_action.setToolTip("Install the required Visual C++ 2010 Runtimes (requires administrator)")
+        install_runtimes_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
+        install_runtimes_action.triggered.connect(self._install_runtimes)
+        options_menu.addAction(install_runtimes_action)
 
         help_menu = menu_bar.addMenu("&Help")
 
@@ -2228,11 +2247,11 @@ QSplitter::handle:vertical:hover {
         help_menu.addSeparator()
 
         self.update_action = QAction("&Check for Updates...", self)
-        self.update_action.setToolTip("Manually check for new application updates")
         self.update_action.setIcon(qta.icon('fa5s.cloud-download-alt'))
         self.update_action.triggered.connect(lambda: self._check_for_updates(manual=True))
-        if self.update_action:
-            self.update_action.setEnabled(self.vcredist_checks_passed)
+        # Set the initial state to disabled. It will be enabled later if checks pass.
+        self.update_action.setEnabled(False)
+        self.update_action.setToolTip("Disabled. Requires the VC++ Runtimes to be installed.")
         help_menu.addAction(self.update_action)
     def _compare_versions(self, version1, version2):
         def _normalize(v):
@@ -2344,7 +2363,8 @@ QSplitter::handle:vertical:hover {
             self._log_message("[INFO] Application is up to date.")
             msg_box = QMessageBox(self)
             msg_box.setWindowIcon(self.app_icon)
-            msg_box.setWindowTitle("Up to Date")
+            #msg_box.setWindowTitle("Up to Date")
+            msg_box.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Up to Date")
             msg_box.setText(f"You are running the latest version: {APP_VERSION}")
             msg_box.setIcon(QMessageBox.Icon.Information)
             msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
@@ -2629,18 +2649,27 @@ start "" /d "{app_dir}" {relaunch_cmd}
     def _nav_last(self):
         self.current_preview_index = len(self.preview_images) - 1
         self._update_previewer_ui()
-    def _update_progress_from_worker(self, percentage, message):
-        fixed_message = message
+    def _update_progress_from_worker(self, percentage, message, prefix="Processing"):
+        # Modify the incoming message to be context-specific for decompile/compile tasks.
+        display_message = message
+        if (prefix == "Decompiling" or prefix == "Compiling") and "Caching file" in message:
+            display_message = message.replace("Caching file", "File")
+
+        fixed_message = display_message
         if sys.platform == "win32":
             try:
-                fixed_message = message.encode('latin-1').decode('utf-8', 'replace')
+                fixed_message = display_message.encode('latin-1').decode('utf-8', 'replace')
             except Exception:
-                fixed_message = message
+                fixed_message = display_message
 
         self.progress_bar.setValue(percentage)
-        status_text = f"Processing: {fixed_message}"
+        status_text = f"{prefix}: {fixed_message}"
         if len(status_text) > 80:
-            status_text = f"Processing: ...{status_text[-77:]}"
+            # Dynamically calculate how many characters of the message to keep
+            # based on the prefix length to ensure the total is about 80 chars.
+            # 80 total - len(prefix) - len(": ...") = 80 - len(prefix) - 5
+            chars_to_keep = max(10, 75 - len(prefix)) # Ensure we keep at least 10 chars
+            status_text = f"{prefix}: ...{fixed_message[-chars_to_keep:]}"
         self.status_label.setText(status_text)
     def _on_info_progress_updated(self, percentage, message):
         """A lightweight slot to only update the progress bar and status text."""
@@ -3300,8 +3329,9 @@ start "" /d "{app_dir}" {relaunch_cmd}
             return html_message, display_message
 
         else:
-            display_message = f"{now_str}: {message}"
-            html_message = f'<span style="color:{self.COLOR_CYAN};">{now_str}:</span> <span style="color:{self.COLOR_DEFAULT};">{message}</span>'
+            # Treat messages without a prefix as INFO messages.
+            display_message = f"[INFO] {message}"
+            html_message = f'<span style="color:{self.COLOR_CYAN};"><b>[INFO]</b></span> <span style="color:{self.COLOR_DEFAULT};">{message}</span>'
             return html_message, display_message
     def _on_search_criterion_changed(self, index):
         """Swaps the search input widget based on the selected criterion."""
@@ -3366,7 +3396,8 @@ start "" /d "{app_dir}" {relaunch_cmd}
             super().__init__(parent)
             from PySide6.QtWidgets import QScrollArea, QSizePolicy
 
-            self.setWindowTitle("Update Available")
+            #self.setWindowTitle("Update Available!")
+            self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Update Available!")
             self.setWindowIcon(parent.app_icon if parent else QIcon())
             self.setMinimumWidth(550)
 
@@ -3461,7 +3492,8 @@ class ChangelogDialog(QDialog):
 
     def __init__(self, changelog_text, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Changelog")
+        #self.setWindowTitle("Changelog")
+        self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Changelog")
         self.setWindowIcon(parent.app_icon if parent else QIcon())
         self.setMinimumSize(600, 500)
         layout = QVBoxLayout(self)
@@ -3481,9 +3513,11 @@ class HelpDialog(QDialog):
         from PySide6.QtWidgets import (QListWidget, QListWidgetItem, QSplitter,
                                        QLabel, QLineEdit, QTextBrowser, QWidget,
                                        QVBoxLayout, QHBoxLayout, QPushButton)
-        from PySide6.QtCore import Qt, Slot
+        from PySide6.QtCore import Qt, Slot, QUrl, QBuffer, QIODevice
+        from PySide6.QtGui import QPixmap, QTextDocument
 
-        self.setWindowTitle("Kodi TextureTool Help")
+        #self.setWindowTitle("Kodi TextureTool Help")
+        self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Help")
         self.setMinimumSize(800, 600)
         self.resize(1250, 800)
 
@@ -3532,7 +3566,7 @@ class HelpDialog(QDialog):
         h1 { color: #88c0d0; border-bottom: 2px solid #4c566a; padding-bottom: 5px; margin-top: 15px; }
         h2 { color: #81a1c1; border-bottom: 1px solid #434c5e; padding-bottom: 3px; margin-top: 10px; }
         h3 { color: #d8dee9; font-weight: bold; }
-        p, li { color: #d8dee9; }
+        p, li { color: #d8dee9; font-size: 11pt; }
         a { color: #88c0d0; text-decoration: none; }
         code { background-color: #434c5e; color: #ebcb8b; padding: 2px 4px; border-radius: 3px; font-family: Consolas, monospace; }
         pre > code { display: block; padding: 10px; border-radius: 5px; }
@@ -3597,6 +3631,12 @@ class HelpDialog(QDialog):
 
     def _load_and_process_markdown(self, file_path):
         import markdown
+        from bs4 import BeautifulSoup
+        from bs4.element import Tag
+        from pathlib import Path
+        from PySide6.QtGui import QPixmap, QTextDocument
+        from PySide6.QtCore import QUrl, QBuffer, QIODevice
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 md_text = f.read()
@@ -3606,17 +3646,52 @@ class HelpDialog(QDialog):
             html_content = md.convert(md_text)
             toc_html = getattr(md, 'toc', '')
 
-            self.content_browser.setHtml(html_content)
+            soup = BeautifulSoup(html_content, 'html.parser')
+            doc = self.content_browser.document()
+            dpr = self.devicePixelRatioF()
+
+            for img_tag in soup.find_all('img'):
+                if isinstance(img_tag, Tag):
+                    src = img_tag.get('src')
+                    if isinstance(src, str) and not src.startswith(('http', 'file:', 'data:')):
+                        absolute_path = get_resource_path(src)
+                        pixmap = QPixmap(absolute_path)
+                        if not pixmap.isNull():
+                            width_attr = img_tag.get('width')
+                            
+                            # --- PYLANCE-SAFE CONVERSION FIX ---
+                            try:
+                                logical_width = int(str(width_attr))
+                            except (ValueError, TypeError):
+                                # Fallback if width attribute is missing, None, or not a valid number
+                                logical_width = pixmap.width() / dpr
+                            # --- END FIX ---
+                            
+                            target_width = int(logical_width * dpr)
+                            scaled_pixmap = pixmap.scaledToWidth(target_width, Qt.TransformationMode.SmoothTransformation)
+                            scaled_pixmap.setDevicePixelRatio(dpr)
+                            
+                            resource_name = Path(absolute_path).as_uri()
+                            buffer = QBuffer()
+                            buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+                            scaled_pixmap.save(buffer, "PNG")
+                            doc.addResource(QTextDocument.ResourceType.ImageResource, QUrl(resource_name), buffer.data())
+                            
+                            img_tag['src'] = resource_name
+
+            final_html = str(soup)
+            self.content_browser.setHtml(final_html)
             self._populate_toc(toc_html)
 
         except FileNotFoundError:
             self.content_browser.setHtml(f"<h1>Error</h1><p>Help file not found at: {file_path}</p>")
         except Exception as e:
-            self.content_browser.setHtml(f"<h1>Error</h1><p>Could not process help file: {e}</p>")
+            import traceback
+            self.content_browser.setHtml(f"<h1>Error</h1><p>Could not process help file: {e}<br><pre>{traceback.format_exc()}</pre></p>")
 
     def _populate_toc(self, toc_html):
         from bs4 import BeautifulSoup
-        from bs4.element import Tag # <-- **FIX 1: Import Tag**
+        from bs4.element import Tag
         from PySide6.QtWidgets import QListWidgetItem, QLabel
         from PySide6.QtCore import Qt
 
@@ -3626,8 +3701,6 @@ class HelpDialog(QDialog):
         soup = BeautifulSoup(toc_html, 'html.parser')
 
         for li in soup.find_all('li'):
-            # --- PYLANCE FIX 2 ---
-            # Ensure 'li' itself is a Tag before calling .find() on it.
             if isinstance(li, Tag):
                 a = li.find('a')
                 if isinstance(a, Tag) and 'href' in a.attrs:
@@ -3641,7 +3714,8 @@ class HelpDialog(QDialog):
 
                     label = QLabel(text)
                     label.setWordWrap(True)
-                    label.setStyleSheet(f"padding-left: {indent_px}px;")
+                    #label.setStyleSheet(f"padding-left: {indent_px}px;")
+                    label.setStyleSheet(f"padding-left: {indent_px}px; font-size: 10pt;")
 
                     self.toc_list_widget.addItem(list_item)
                     self.toc_list_widget.setItemWidget(list_item, label)
@@ -3698,121 +3772,139 @@ if __name__ == "__main__":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Kittmaster's Kodi TextureTool")
     app.setApplicationName(APP_TITLE)
     app.setOrganizationName("KodiTextureTool")
-    #app.setApplicationDisplayName(APP_TITLE)  # This explicitly sets the display name
-    # ---- A modern, dark stylesheet ----
+
+    # 1. Get the correct, absolute path to the SVG using your helper function
+    checkmark_path = get_resource_path('assets/checkmark.svg').replace('\\', '/')
+
+    # 2. Your stylesheet with ALL CSS braces escaped ({{ and }})
     stylesheet = """
 
 /* MENU_FIX_APPLIED_v1.7.4 */
-        QWidget {
+        QWidget {{
             background-color: #2e3440;
             color: #d8dee9;
             font-size: 10pt;
-        }
-        QMainWindow {
+        }}
+        QMainWindow {{
             background-color: #2e3440;
-        }
-        QMenuBar {
+        }}
+        QMenuBar {{
             background-color: #2e3440;
             border-bottom: 1px solid #4c566a;
-        }
-        QMenuBar::item {
+        }}
+        QMenuBar::item {{
             color: #d8dee9; /* Fix for black text/icons on Win10/7 */
-        }
-        QMenuBar::item:selected {
+        }}
+        QMenuBar::item:selected {{
             background-color: #434c5e;
-        }
-        QMenu {
+        }}
+        QMenu {{
             background-color: #3b4252;
             border: 1px solid #4c566a;
-        }
-        QMenu::item {
+        }}
+        QMenu::item {{
             color: #d8dee9; /* Fix for black text/icons on Win10/7 */
-        }
-        QGroupBox {
+        }}
+        QGroupBox {{
             font-weight: bold;
             border: 1px solid #4c566a;
             border-radius: 5px;
             margin-top: 1ex;
             padding-top: 8px;
-        }
-        DropGroupBox[dragging="true"] {
+        }}
+        DropGroupBox[dragging="true"] {{
             border: 2px solid #88c0d0;
-        }
-        QGroupBox::title {
+        }}
+        QGroupBox::title {{
             subcontrol-origin: margin;
             subcontrol-position: top center;
             padding: 0 3px;
-        }
-        QFrame {
+        }}
+        QFrame {{
             margin-top: 5px;
             margin-bottom: 5px;
-        }
-        QPushButton {
+        }}
+        QPushButton {{
             background-color: #434c5e;
             color: #d8dee9; /* This ensures icons are white on Win10/7 */
             border: 1px solid #4c566a;
             padding: 5px;
             border-radius: 3px;
-        }
-        QPushButton:hover {
+        }}
+        QPushButton:hover {{
             background-color: #4c566a;
-        }
-        QPushButton:pressed {
+        }}
+        QPushButton:pressed {{
             background-color: #81a1c1;
             color: #2e3440;
-        }
-        QPushButton:disabled {
+        }}
+        QPushButton:disabled {{
             background-color: #3b4252;
             color: #4c566a;
-        }
+        }}
 
-QCheckBox:disabled {
-    color: #4c566a;
-}
-        QMenu::item:selected {
+        QCheckBox:disabled {{
+            color: #4c566a;
+        }}
+        QMenu::item:selected {{
             background-color: #81a1c1;
             color: #2e3440;
-        }
-        QTextEdit#LogWidget {
+        }}
+
+        /* FINAL CHECKMARK FIX */
+        QMenu::indicator {{
+            width: 13px;
+            height: 13px;
+        }}
+        QMenu::indicator:non-exclusive:checked {{
+            image: url({checkmark_svg_path});
+        }}
+
+        QTextEdit#LogWidget {{
             background-color: #3b4252;
             border: 1px solid #4c566a;
             border-radius: 3px;
-        }
-        QLabel#StatusLabel {
+        }}
+        QLabel#StatusLabel {{
             color: #88c0d0;
-        }
-        QLabel[state="unselected"] {
+        }}
+        QLabel[state="unselected"] {{
             color: #4c566a;
             font-style: italic;
-        }
-        QLabel[state="selected"] {
+        }}
+        QLabel[state="selected"] {{
             color: #d8dee9;
             font-weight: bold;
-        }
-        QProgressBar {
+        }}
+        QProgressBar {{
             border: 1px solid #4c566a;
             border-radius: 3px;
             text-align: center;
-        }
-        QProgressBar::chunk {
+        }}
+        QProgressBar::chunk {{
             background-color: #88c0d0;
-        }
-        QPushButton:focus {
-    outline: none;
-}
+        }}
+        QPushButton:focus {{
+            outline: none;
+        }}
 
 
-/* Custom Tooltip Style */
-QToolTip {
-    background-color: #3b4252;
-    color: #d8dee9;
-    border: 1px solid #4c566a;
-    padding: 4px;
-    border-radius: 3px;
-}
+        /* Custom Tooltip Style */
+        QToolTip {{
+            background-color: #3b4252;
+            color: #d8dee9;
+            border: 1px solid #4c566a;
+            padding: 4px;
+            border-radius: 3px;
+        }}
 """
-    app.setStyleSheet(stylesheet)
+
+    # 3. Format the stylesheet string, injecting the correct path
+    formatted_stylesheet = stylesheet.format(checkmark_svg_path=checkmark_path)
+
+    # 4. Apply the fully formatted stylesheet
+    app.setStyleSheet(formatted_stylesheet)
+
     window = TextureToolApp()
     window.show()
     sys.exit(app.exec())
-    

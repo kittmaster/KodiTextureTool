@@ -8,8 +8,8 @@ init(autoreset=True)
 
 # --- SCRIPT CONFIGURATION ---
 TARGET_FILE = "Kodi TextureTool.py"
-BACKUP_VERSION = "v3.3.97" # The new version you are applying
-PATCH_DESCRIPTION = "Fix jagged icon scaling in UpdateDialog by matching QLabel size to the smooth-scaled QPixmap." # (NEW) A summary of the patch's changes.
+BACKUP_VERSION = "v3.5.6" # The new version you are applying
+PATCH_DESCRIPTION = "Ensures short paths are converted to long paths before deletion for accurate logging." # (NEW) A summary of the patch's changes.
 BACKUP_FILE = f"{TARGET_FILE}.bak.{BACKUP_VERSION}"
 
 # The generic prefix is used for checking if a patch from ANY version exists.
@@ -26,103 +26,110 @@ MODULE_LEVEL_DIRECTIVES = {
 
 # Use this to REPLACE the entire body of an existing function.
 REPLACEMENT_DIRECTIVES = {
-    "TextureToolApp.UpdateDialog.__init__": '''
-    def __init__(self, version, changelog_html, parent=None):
-        super().__init__(parent)
-        from PySide6.QtWidgets import QScrollArea, QSizePolicy
+    "TextureToolApp._start_get_info": """
+    def _start_get_info(self):
+        '''Orchestrates the two-stage Get Info process: silent extract, then info scan.'''
+        if any(t is not None for t in (self.decompile_thread, self.compile_thread, self.info_thread, self.installer_thread, self.decompile_for_info_thread)):
+            self._log_message("[WARN] Another task is already in progress. Please wait.")
+            return
 
-        self.setWindowTitle("Update Available")
-        self.setWindowIcon(parent.app_icon if parent else QIcon())
-        self.setMinimumWidth(550)
+        if not self.workspace_dir:
+            self._log_message("[ERROR] Cannot start task, workspace not available.")
+            return
+        assert self.workspace_dir is not None # Hint for Pylance
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(10)
+        # --- Garbage Collection for old info caches ---
+        self._log_message("[INFO] Performing cleanup of old temporary info caches...")
+        temp_dir = tempfile.gettempdir()
+        prefix = "ktt_info_cache_"
+        found_and_cleaned = 0
+        try:
+            for item_name in os.listdir(temp_dir):
+                if item_name.startswith(prefix):
+                    item_path = os.path.join(temp_dir, item_name)
+                    if os.path.isdir(item_path):
+                        # --- FIX: Convert path to long name BEFORE deleting it ---
+                        long_item_path = item_path
+                        if sys.platform == "win32":
+                            buffer = ctypes.create_unicode_buffer(512)
+                            # This API call only works if the path exists.
+                            if ctypes.windll.kernel32.GetLongPathNameW(item_path, buffer, 512):
+                                long_item_path = buffer.value
+                        # --- END FIX ---
+                        try:
+                            shutil.rmtree(item_path)
+                            self._log_message(f"[INFO] Removed orphaned cache directory: {long_item_path}")
+                            found_and_cleaned += 1
+                        except Exception as e:
+                            self._log_message(f"[WARN] Could not remove old cache directory '{long_item_path}': {e}")
+            if found_and_cleaned == 0:
+                self._log_message("[INFO] No old info caches found to clean up.")
+        except Exception as e:
+            self._log_message(f"[WARN] An error occurred during temp folder cleanup: {e}")
+        # --- End Garbage Collection ---
 
-        # --- Top Section (Icon + Title) ---
-        top_container_widget = QWidget()
-        top_container_widget.setMinimumHeight(85) # Ensure container is tall enough
+        # --- PHASE 1: SILENT DECOMPILATION ---
+        self._log_message("[INFO] ----- Starting Get Info -----")
 
-        container_v_layout = QVBoxLayout(top_container_widget)
-        container_v_layout.setContentsMargins(0, 0, 0, 0)
-        
-        content_h_layout = QHBoxLayout()
-        
-        icon_label = QLabel()
-        # 1. Scale the pixmap with high quality
-        icon_pixmap = QPixmap(get_resource_path("assets/kodi_logo_96.png")).scaled(
-            64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-        )
-        icon_label.setPixmap(icon_pixmap)
-        # 2. Force the label to the exact same size as the pixmap to prevent jagged re-scaling
-        icon_label.setFixedSize(64, 64)
+        # Reset search state on new info retrieval
+        self._reset_search_state()
 
-        title_label = QLabel("A new version is available!")
-        title_label.setStyleSheet("font-size: 14pt;")
-        
-        content_h_layout.addWidget(icon_label)
-        content_h_layout.addSpacing(15)
-        content_h_layout.addWidget(title_label)
-        content_h_layout.addStretch()
+        if self.info_cache_dir and os.path.exists(self.info_cache_dir):
+            shutil.rmtree(self.info_cache_dir, ignore_errors=True)
 
-        # 3. Use stretches to vertically center the content_h_layout within the container
-        container_v_layout.addStretch(1)
-        container_v_layout.addLayout(content_h_layout)
-        container_v_layout.addStretch(1)
+        self.preview_images.clear()
+        self.current_preview_index = -1
+        self._update_previewer_ui()
 
-        main_layout.addWidget(top_container_widget)
+        try:
+            # Create the temp directory; path may be short on some systems.
+            short_path_cache_dir = tempfile.mkdtemp(prefix="ktt_info_cache_")
 
-        # --- Scrollable Content Section ---
-        scroll_area = QScrollArea(self)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet("QScrollArea { border: 1px solid #4c566a; border-radius: 3px; background-color: #3b4252; } QWidget { background-color: #3b4252; }")
+            # --- COSMETIC FIX: Convert to long path for logging and internal use ---
+            long_path_cache_dir = short_path_cache_dir
+            if sys.platform == "win32":
+                # Create a buffer to hold the long path.
+                buffer = ctypes.create_unicode_buffer(512)
+                # Call the Windows API function to get the long path name.
+                if ctypes.windll.kernel32.GetLongPathNameW(short_path_cache_dir, buffer, 512):
+                    long_path_cache_dir = buffer.value
 
-        scroll_area.setMaximumHeight(400) 
+            self.info_cache_dir = long_path_cache_dir
+            # --- END COSMETIC FIX ---
 
-        scroll_content_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content_widget)
-        scroll_layout.setContentsMargins(15, 15, 15, 15)
+            self._log_message(f"[INFO] Created temporary image cache: {self.info_cache_dir}")
+        except Exception as e:
+            self._log_message(f"[ERROR] Could not create temporary cache directory: {e}")
+            self.info_cache_dir = None
+            return
 
-        informative_content = f"""
-            <b>Version: {version}</b>
-            <br><br>
-            <b>Changes:</b><br>
-            {changelog_html}
-        """
-        content_label = QLabel(informative_content.strip())
-        content_label.setTextFormat(Qt.TextFormat.RichText)
-        content_label.setWordWrap(True)
-        content_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        content_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self._set_ui_task_active(True)
+        # --- MODIFICATION: Set progress bar to determinate for Phase 1 ---
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.status_label.setText("Step 1/2: Caching images...")
 
+        decompile_cwd = os.path.join(self.workspace_dir, "utils", "TexturePacker_Decompile")
+        decompile_exe = os.path.join(decompile_cwd, "TextureExtractor.exe")
+        decompile_command = [decompile_exe, "-o", self.info_cache_dir, "-c", os.path.normpath(self.decompile_input_file)]
 
-        scroll_layout.addWidget(content_label)
-        scroll_content_widget.setLayout(scroll_layout)
-        scroll_area.setWidget(scroll_content_widget)
+        self.decompile_for_info_thread = QThread(self)
+        self.decompile_for_info_worker = Worker(decompile_command, decompile_cwd, show_window=False)
+        self.decompile_for_info_worker.moveToThread(self.decompile_for_info_thread)
 
-        main_layout.addWidget(scroll_area)
+        # --- CRITICAL FIX: Connect the progress signal to its handler ---
+        self.decompile_for_info_worker.progress_updated.connect(self._on_get_info_cache_progress)
 
-        # --- Bottom Question and Buttons ---
-        question_label = QLabel("Would you like to download and update now?")
-        question_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(question_label)
+        self.decompile_for_info_worker.finished.connect(self.decompile_for_info_thread.quit)
+        self.decompile_for_info_worker.finished.connect(self.decompile_for_info_worker.deleteLater)
+        self.decompile_for_info_thread.finished.connect(self.decompile_for_info_thread.deleteLater)
 
-        button_box = QHBoxLayout()
-        yes_button = QPushButton("Yes")
-        yes_button.setMinimumSize(100, 30)
-        yes_button.clicked.connect(self.accept)
+        self.decompile_for_info_thread.started.connect(self.decompile_for_info_worker.run)
+        self.decompile_for_info_worker.finished.connect(self._start_get_info_phase2)
+        self.decompile_for_info_worker.error.connect(self._on_get_info_extract_failed)
 
-        no_button = QPushButton("No")
-        no_button.setMinimumSize(100, 30)
-        no_button.clicked.connect(self.reject)
-
-        button_box.addStretch()
-        button_box.addWidget(yes_button)
-        button_box.addWidget(no_button)
-        button_box.addStretch()
-
-        main_layout.addLayout(button_box)
-    ''',
+        self.decompile_for_info_thread.start()
+""",
 }
 
 # Use this to ADD one or more brand new methods to a class.
