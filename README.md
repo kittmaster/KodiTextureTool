@@ -64,7 +64,7 @@ Proudly updated for compatibility with **Windows 10/11** platforms.
 ### 📖 Learn More
 
 📚 Visit the Kodi forum thread:  
-[🔗 Texture Tool on Kodi Forum](https://forum.kodi.tv/showthread.php?tid=377635)
+[🔗 Texture Tool on Kodi Forum](https://forum.kodi.tv/showthread.php?tid=382565)
 
 ---
 
@@ -79,7 +79,7 @@ Please honor the license terms when redistributing or modifying.
 
 For help, bug reports, and ongoing discussion, please use:
 
-- 📣 [Kodi Forum Support Thread](https://forum.kodi.tv/showthread.php?tid=377635) (preferred)
-- 🐞 [GitHub Issues Page](https://github.com/kittmaster/KodiTextureTool/issues)
+- 📣 [Kodi Forum Support Thread](https://forum.kodi.tv/showthread.php?tid=382565) (Basic reporting)
+- 🐞 [GitHub Issues Page](https://github.com/kittmaster/KodiTextureTool/issues) (All operational issues)
 
 Forum reporting helps consolidate fixes and avoid duplicates — thank you for keeping things tidy!
