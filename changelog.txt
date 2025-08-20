@@ -1,4 +1,7 @@
 <pre style="color: #d8dee9; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif; padding-left: 10px;">
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.1 - Update & Changelog Features</span>
+       - 🐍 Updated progress bar method from event loop flooding causing a buffer overrun
+       - 🐍 Added "Reload All" fix path verification before load and discard invalid paths
 <span style="color: #88c0d0; font-weight: bold;">   v3.1.0 - Update & Changelog Features</span>
        - 🖼️ Added image previewer with navigation, metadata, and double-click open
        - 🔍 Implemented search bar with match tracking and wraparound navigation

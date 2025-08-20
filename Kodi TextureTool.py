@@ -1,4 +1,4 @@
-# PATCHED_BY_SCRIPT_VERSION: v3.5.6 | Ensures short paths are converted to long paths before deletion for accurate logging.
+# PATCHED_BY_SCRIPT_VERSION: v3.5.9 | Added validation for recent files to prevent crashes and clean up missing entries.
 
 # -*- coding: utf-8 -*-
 
@@ -70,10 +70,10 @@ def get_resource_path(relative_path):
 
 # ---- Global variables from original script
 # ---- These will be managed as instance attributes in the main class
-APP_VERSION = "v3.1.0"
+APP_VERSION = "v3.1.1"
 APP_TITLE = "Kodi TextureTool"
 APP_AUTHOR = "Chris Bertrand"
-BUILD_DATE = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+BUILD_DATE = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
 
 class RecentGroup(Enum):
     """Defines constant identifiers for recent item categories."""
@@ -105,7 +105,6 @@ class Worker(QObject):
             for line in iter(self.stream.readline, ''):
                 self.line_ready.emit(line.strip())
             self.finished.emit()
-
     def __init__(self, command, cwd, show_window: bool = False):
         super().__init__()
         self.command = command
@@ -119,6 +118,7 @@ class Worker(QObject):
         self.full_stderr = []
         self.stdout_finished = False
         self.stderr_finished = False
+        self.last_emitted_progress = -1  # Initialize progress tracker
 
     def run(self):
         try:
@@ -193,7 +193,14 @@ class Worker(QObject):
                 parts = line.split(':', 2)
                 percentage = int(parts[1])
                 message = parts[2] if len(parts) > 2 else ""
-                self.progress_updated.emit(percentage, message)
+
+                # --- THROTTLING LOGIC ---
+                # Only emit the signal if the percentage has actually changed.
+                # This prevents flooding the GUI event loop with thousands of signals.
+                if percentage > self.last_emitted_progress:
+                    self.last_emitted_progress = percentage
+                    self.progress_updated.emit(percentage, message)
+
             except (ValueError, IndexError):
                 pass
         elif line.startswith("Texture:"):
@@ -637,61 +644,89 @@ class TextureToolApp(QMainWindow):
             if hasattr(self, 'reload_all_btn'):
                 self.reload_all_btn.setEnabled(can_reload)
     def _open_recent_compile_file(self, path):
-        self.compile_output_file = path
-        _display_path_1 = os.path.basename(path)
-        self.compile_output_label.setText(f"..\\{os.path.basename(_display_path_1)}")
-        self.compile_output_label.setToolTip(_display_path_1)
-        self.compile_output_label.setToolTip(path)
-        self.compile_output_label.setProperty("state", "selected")
-        self.compile_output_label.style().unpolish(self.compile_output_label)
-        self.compile_output_label.style().polish(self.compile_output_label)
-        self._set_config_path('compileoutput', os.path.dirname(path))
-        self._log_message(f'[DATA] Path to output file: "{os.path.normpath(self.compile_output_file)}"')
-        self._log_message("[INFO] Output folder destination loaded successfully.")
-        self._update_button_states()
-        self._update_status_label()
+        if os.path.exists(path):
+            self.compile_output_file = path
+            _display_path_1 = os.path.basename(path)
+            self.compile_output_label.setText(f"..\\{os.path.basename(_display_path_1)}")
+            self.compile_output_label.setToolTip(_display_path_1)
+            self.compile_output_label.setToolTip(path)
+            self.compile_output_label.setProperty("state", "selected")
+            self.compile_output_label.style().unpolish(self.compile_output_label)
+            self.compile_output_label.style().polish(self.compile_output_label)
+            self._set_config_path('compileoutput', os.path.dirname(path))
+            self._log_message(f'[DATA] Path to output file: "{os.path.normpath(self.compile_output_file)}"')
+            self._log_message("[INFO] Output folder destination loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent compile file not found, removing from list: {path}")
+            self.recent_compile_files.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent File Not Found", f"The recent compile file could not be found and has been removed from the list:\n\n{path}")
     def _open_recent_compile_folder(self, path):
-        self.compile_input_folder = path
-        _display_path_2 = os.path.basename(path)
-        self.compile_input_label.setText(f"..\\{os.path.basename(_display_path_2)}")
-        self.compile_input_label.setToolTip(_display_path_2)
-        self.compile_input_label.setToolTip(path)
-        self.compile_input_label.setProperty("state", "selected")
-        self.compile_input_label.style().unpolish(self.compile_input_label)
-        self.compile_input_label.style().polish(self.compile_input_label)
-        self._set_config_path('compileinput', path)
-        self._log_message(f'[DATA] Path to directory: "{os.path.normpath(self.compile_input_folder)}"')
-        self._log_message("[INFO] Image folder input selection loaded successfully.")
-        self._update_button_states()
-        self._update_status_label()
+        if os.path.exists(path):
+            self.compile_input_folder = path
+            _display_path_2 = os.path.basename(path)
+            self.compile_input_label.setText(f"..\\{os.path.basename(_display_path_2)}")
+            self.compile_input_label.setToolTip(_display_path_2)
+            self.compile_input_label.setToolTip(path)
+            self.compile_input_label.setProperty("state", "selected")
+            self.compile_input_label.style().unpolish(self.compile_input_label)
+            self.compile_input_label.style().polish(self.compile_input_label)
+            self._set_config_path('compileinput', path)
+            self._log_message(f'[DATA] Path to directory: "{os.path.normpath(self.compile_input_folder)}"')
+            self._log_message("[INFO] Image folder input selection loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent compile folder not found, removing from list: {path}")
+            self.recent_compile_folders.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent Folder Not Found", f"The recent compile folder could not be found and has been removed from the list:\n\n{path}")
     def _open_recent_decompile_file(self, path):
-        self.decompile_input_file = path
-        _display_path_3 = os.path.basename(path)
-        self.decompile_input_label.setText(f"..\\{os.path.basename(_display_path_3)}")
-        self.decompile_input_label.setToolTip(_display_path_3)
-        self.decompile_input_label.setToolTip(path)
-        self.decompile_input_label.setProperty("state", "selected")
-        self.decompile_input_label.style().unpolish(self.decompile_input_label)
-        self.decompile_input_label.style().polish(self.decompile_input_label)
-        self._set_config_path('decompileinput', os.path.dirname(path))
-        self._log_message(f'[DATA] Decompile input file: "{os.path.normpath(self.decompile_input_file)}"')
-        self._log_message("[INFO] Input selection loaded successfully.")
-        self._update_button_states()
-        self._update_status_label()
+        if os.path.exists(path):
+            self.decompile_input_file = path
+            _display_path_3 = os.path.basename(path)
+            self.decompile_input_label.setText(f"..\\{os.path.basename(_display_path_3)}")
+            self.decompile_input_label.setToolTip(_display_path_3)
+            self.decompile_input_label.setToolTip(path)
+            self.decompile_input_label.setProperty("state", "selected")
+            self.decompile_input_label.style().unpolish(self.decompile_input_label)
+            self.decompile_input_label.style().polish(self.decompile_input_label)
+            self._set_config_path('decompileinput', os.path.dirname(path))
+            self._log_message(f'[DATA] Decompile input file: "{os.path.normpath(self.decompile_input_file)}"')
+            self._log_message("[INFO] Input selection loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent decompile file not found, removing from list: {path}")
+            self.recent_decompile_files.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent File Not Found", f"The recent decompile file could not be found and has been removed from the list:\n\n{path}")
     def _open_recent_decompile_folder(self, path):
-        self.decompile_output_folder = path
-        _display_path_4 = os.path.basename(path)
-        self.decompile_output_label.setText(f"..\\{os.path.basename(_display_path_4)}")
-        self.decompile_output_label.setToolTip(_display_path_4)
-        self.decompile_output_label.setToolTip(path)
-        self.decompile_output_label.setProperty("state", "selected")
-        self.decompile_output_label.style().unpolish(self.decompile_output_label)
-        self.decompile_output_label.style().polish(self.decompile_output_label)
-        self._set_config_path('decompileoutput', path)
-        self._log_message(f'[DATA] Decompile output directory: "{os.path.normpath(self.decompile_output_folder)}"')
-        self._log_message("[INFO] Output folder destination loaded successfully.")
-        self._update_button_states()
-        self._update_status_label()
+        if os.path.exists(path):
+            self.decompile_output_folder = path
+            _display_path_4 = os.path.basename(path)
+            self.decompile_output_label.setText(f"..\\{os.path.basename(_display_path_4)}")
+            self.decompile_output_label.setToolTip(_display_path_4)
+            self.decompile_output_label.setToolTip(path)
+            self.decompile_output_label.setProperty("state", "selected")
+            self.decompile_output_label.style().unpolish(self.decompile_output_label)
+            self.decompile_output_label.style().polish(self.decompile_output_label)
+            self._set_config_path('decompileoutput', path)
+            self._log_message(f'[DATA] Decompile output directory: "{os.path.normpath(self.decompile_output_folder)}"')
+            self._log_message("[INFO] Output folder destination loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent decompile folder not found, removing from list: {path}")
+            self.recent_decompile_folders.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent Folder Not Found", f"The recent decompile folder could not be found and has been removed from the list:\n\n{path}")
     
     def _open_last_decompile_input(self):
         """Opens the most recent decompile input file."""
@@ -1636,9 +1671,9 @@ QSplitter::handle:vertical:hover {
                             # This API call only works if the path exists.
                             if ctypes.windll.kernel32.GetLongPathNameW(item_path, buffer, 512):
                                 long_item_path = buffer.value
-                        # --- END FIX ---
+
                         try:
-                            shutil.rmtree(item_path)
+                            shutil.rmtree(long_item_path) # Use the corrected long path for deletion
                             self._log_message(f"[INFO] Removed orphaned cache directory: {long_item_path}")
                             found_and_cleaned += 1
                         except Exception as e:
@@ -2693,7 +2728,7 @@ start "" /d "{app_dir}" {relaunch_cmd}
             return
 
         # --- BUG FIX: Clear Phase 1 handles immediately upon its success ---
-        # The Phase 1 worker is done, so we release its lock on the UI.
+        # The Phase 1 worker is done, so we release its lock on the UI state.
         self.decompile_for_info_thread = None
         self.decompile_for_info_worker = None
         # --- END BUG FIX ---

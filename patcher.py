@@ -8,8 +8,8 @@ init(autoreset=True)
 
 # --- SCRIPT CONFIGURATION ---
 TARGET_FILE = "Kodi TextureTool.py"
-BACKUP_VERSION = "v3.5.6" # The new version you are applying
-PATCH_DESCRIPTION = "Ensures short paths are converted to long paths before deletion for accurate logging." # (NEW) A summary of the patch's changes.
+BACKUP_VERSION = "v3.5.9" # The new version you are applying
+PATCH_DESCRIPTION = "Added validation for recent files to prevent crashes and clean up missing entries." # (NEW) A summary of the patch's changes.
 BACKUP_FILE = f"{TARGET_FILE}.bak.{BACKUP_VERSION}"
 
 # The generic prefix is used for checking if a patch from ANY version exists.
@@ -26,110 +26,98 @@ MODULE_LEVEL_DIRECTIVES = {
 
 # Use this to REPLACE the entire body of an existing function.
 REPLACEMENT_DIRECTIVES = {
-    "TextureToolApp._start_get_info": """
-    def _start_get_info(self):
-        '''Orchestrates the two-stage Get Info process: silent extract, then info scan.'''
-        if any(t is not None for t in (self.decompile_thread, self.compile_thread, self.info_thread, self.installer_thread, self.decompile_for_info_thread)):
-            self._log_message("[WARN] Another task is already in progress. Please wait.")
-            return
-
-        if not self.workspace_dir:
-            self._log_message("[ERROR] Cannot start task, workspace not available.")
-            return
-        assert self.workspace_dir is not None # Hint for Pylance
-
-        # --- Garbage Collection for old info caches ---
-        self._log_message("[INFO] Performing cleanup of old temporary info caches...")
-        temp_dir = tempfile.gettempdir()
-        prefix = "ktt_info_cache_"
-        found_and_cleaned = 0
-        try:
-            for item_name in os.listdir(temp_dir):
-                if item_name.startswith(prefix):
-                    item_path = os.path.join(temp_dir, item_name)
-                    if os.path.isdir(item_path):
-                        # --- FIX: Convert path to long name BEFORE deleting it ---
-                        long_item_path = item_path
-                        if sys.platform == "win32":
-                            buffer = ctypes.create_unicode_buffer(512)
-                            # This API call only works if the path exists.
-                            if ctypes.windll.kernel32.GetLongPathNameW(item_path, buffer, 512):
-                                long_item_path = buffer.value
-                        # --- END FIX ---
-                        try:
-                            shutil.rmtree(item_path)
-                            self._log_message(f"[INFO] Removed orphaned cache directory: {long_item_path}")
-                            found_and_cleaned += 1
-                        except Exception as e:
-                            self._log_message(f"[WARN] Could not remove old cache directory '{long_item_path}': {e}")
-            if found_and_cleaned == 0:
-                self._log_message("[INFO] No old info caches found to clean up.")
-        except Exception as e:
-            self._log_message(f"[WARN] An error occurred during temp folder cleanup: {e}")
-        # --- End Garbage Collection ---
-
-        # --- PHASE 1: SILENT DECOMPILATION ---
-        self._log_message("[INFO] ----- Starting Get Info -----")
-
-        # Reset search state on new info retrieval
-        self._reset_search_state()
-
-        if self.info_cache_dir and os.path.exists(self.info_cache_dir):
-            shutil.rmtree(self.info_cache_dir, ignore_errors=True)
-
-        self.preview_images.clear()
-        self.current_preview_index = -1
-        self._update_previewer_ui()
-
-        try:
-            # Create the temp directory; path may be short on some systems.
-            short_path_cache_dir = tempfile.mkdtemp(prefix="ktt_info_cache_")
-
-            # --- COSMETIC FIX: Convert to long path for logging and internal use ---
-            long_path_cache_dir = short_path_cache_dir
-            if sys.platform == "win32":
-                # Create a buffer to hold the long path.
-                buffer = ctypes.create_unicode_buffer(512)
-                # Call the Windows API function to get the long path name.
-                if ctypes.windll.kernel32.GetLongPathNameW(short_path_cache_dir, buffer, 512):
-                    long_path_cache_dir = buffer.value
-
-            self.info_cache_dir = long_path_cache_dir
-            # --- END COSMETIC FIX ---
-
-            self._log_message(f"[INFO] Created temporary image cache: {self.info_cache_dir}")
-        except Exception as e:
-            self._log_message(f"[ERROR] Could not create temporary cache directory: {e}")
-            self.info_cache_dir = None
-            return
-
-        self._set_ui_task_active(True)
-        # --- MODIFICATION: Set progress bar to determinate for Phase 1 ---
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.status_label.setText("Step 1/2: Caching images...")
-
-        decompile_cwd = os.path.join(self.workspace_dir, "utils", "TexturePacker_Decompile")
-        decompile_exe = os.path.join(decompile_cwd, "TextureExtractor.exe")
-        decompile_command = [decompile_exe, "-o", self.info_cache_dir, "-c", os.path.normpath(self.decompile_input_file)]
-
-        self.decompile_for_info_thread = QThread(self)
-        self.decompile_for_info_worker = Worker(decompile_command, decompile_cwd, show_window=False)
-        self.decompile_for_info_worker.moveToThread(self.decompile_for_info_thread)
-
-        # --- CRITICAL FIX: Connect the progress signal to its handler ---
-        self.decompile_for_info_worker.progress_updated.connect(self._on_get_info_cache_progress)
-
-        self.decompile_for_info_worker.finished.connect(self.decompile_for_info_thread.quit)
-        self.decompile_for_info_worker.finished.connect(self.decompile_for_info_worker.deleteLater)
-        self.decompile_for_info_thread.finished.connect(self.decompile_for_info_thread.deleteLater)
-
-        self.decompile_for_info_thread.started.connect(self.decompile_for_info_worker.run)
-        self.decompile_for_info_worker.finished.connect(self._start_get_info_phase2)
-        self.decompile_for_info_worker.error.connect(self._on_get_info_extract_failed)
-
-        self.decompile_for_info_thread.start()
-""",
+    "TextureToolApp._open_recent_compile_file": """
+    def _open_recent_compile_file(self, path):
+        if os.path.exists(path):
+            self.compile_output_file = path
+            _display_path_1 = os.path.basename(path)
+            self.compile_output_label.setText(f"..\\\\{os.path.basename(_display_path_1)}")
+            self.compile_output_label.setToolTip(_display_path_1)
+            self.compile_output_label.setToolTip(path)
+            self.compile_output_label.setProperty("state", "selected")
+            self.compile_output_label.style().unpolish(self.compile_output_label)
+            self.compile_output_label.style().polish(self.compile_output_label)
+            self._set_config_path('compileoutput', os.path.dirname(path))
+            self._log_message(f'[DATA] Path to output file: "{os.path.normpath(self.compile_output_file)}"')
+            self._log_message("[INFO] Output folder destination loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent compile file not found, removing from list: {path}")
+            self.recent_compile_files.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent File Not Found", f"The recent compile file could not be found and has been removed from the list:\\n\\n{path}")
+    """,
+    "TextureToolApp._open_recent_compile_folder": """
+    def _open_recent_compile_folder(self, path):
+        if os.path.exists(path):
+            self.compile_input_folder = path
+            _display_path_2 = os.path.basename(path)
+            self.compile_input_label.setText(f"..\\\\{os.path.basename(_display_path_2)}")
+            self.compile_input_label.setToolTip(_display_path_2)
+            self.compile_input_label.setToolTip(path)
+            self.compile_input_label.setProperty("state", "selected")
+            self.compile_input_label.style().unpolish(self.compile_input_label)
+            self.compile_input_label.style().polish(self.compile_input_label)
+            self._set_config_path('compileinput', path)
+            self._log_message(f'[DATA] Path to directory: "{os.path.normpath(self.compile_input_folder)}"')
+            self._log_message("[INFO] Image folder input selection loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent compile folder not found, removing from list: {path}")
+            self.recent_compile_folders.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent Folder Not Found", f"The recent compile folder could not be found and has been removed from the list:\\n\\n{path}")
+    """,
+    "TextureToolApp._open_recent_decompile_file": """
+    def _open_recent_decompile_file(self, path):
+        if os.path.exists(path):
+            self.decompile_input_file = path
+            _display_path_3 = os.path.basename(path)
+            self.decompile_input_label.setText(f"..\\\\{os.path.basename(_display_path_3)}")
+            self.decompile_input_label.setToolTip(_display_path_3)
+            self.decompile_input_label.setToolTip(path)
+            self.decompile_input_label.setProperty("state", "selected")
+            self.decompile_input_label.style().unpolish(self.decompile_input_label)
+            self.decompile_input_label.style().polish(self.decompile_input_label)
+            self._set_config_path('decompileinput', os.path.dirname(path))
+            self._log_message(f'[DATA] Decompile input file: "{os.path.normpath(self.decompile_input_file)}"')
+            self._log_message("[INFO] Input selection loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent decompile file not found, removing from list: {path}")
+            self.recent_decompile_files.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent File Not Found", f"The recent decompile file could not be found and has been removed from the list:\\n\\n{path}")
+    """,
+    "TextureToolApp._open_recent_decompile_folder": """
+    def _open_recent_decompile_folder(self, path):
+        if os.path.exists(path):
+            self.decompile_output_folder = path
+            _display_path_4 = os.path.basename(path)
+            self.decompile_output_label.setText(f"..\\\\{os.path.basename(_display_path_4)}")
+            self.decompile_output_label.setToolTip(_display_path_4)
+            self.decompile_output_label.setToolTip(path)
+            self.decompile_output_label.setProperty("state", "selected")
+            self.decompile_output_label.style().unpolish(self.decompile_output_label)
+            self.decompile_output_label.style().polish(self.decompile_output_label)
+            self._set_config_path('decompileoutput', path)
+            self._log_message(f'[DATA] Decompile output directory: "{os.path.normpath(self.decompile_output_folder)}"')
+            self._log_message("[INFO] Output folder destination loaded successfully.")
+            self._update_button_states()
+            self._update_status_label()
+        else:
+            self._log_message(f"[WARN] Recent decompile folder not found, removing from list: {path}")
+            self.recent_decompile_folders.remove(path)
+            self._save_recent()
+            self._update_recent_menus()
+            QMessageBox.warning(self, "Recent Folder Not Found", f"The recent decompile folder could not be found and has been removed from the list:\\n\\n{path}")
+    """,
 }
 
 # Use this to ADD one or more brand new methods to a class.

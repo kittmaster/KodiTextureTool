@@ -1,8 +1,12 @@
 {
-  "latest_version": "v3.1.0",
-  "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.0",
-  "update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.0/Kodi.TextureTool-v3.1.0.zip",
+  "latest_version": "v3.1.1",
+  "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.1",
+  "update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.1/KodiTextureTool_Release_v3.1.1.zip",
   "changelog": [
+   	"- v3.1.1 - Initial Release",
+   	"- 🐍 Updated progress bar method from event loop flooding causing a buffer overrun",
+   	"- 🐍 Added 'Reload All' fix path verification before load and discard invalid paths",
+	
  	"- v3.1.0 - Update & Changelog Features",  
  	"- 🖼️ Added image previewer with navigation, metadata, and double-click open",
  	"- 🔍 Implemented search bar with match tracking and wraparound navigation",
