@@ -1,4 +1,4 @@
-# PATCHED_BY_SCRIPT_VERSION: v3.5.9 | Added validation for recent files to prevent crashes and clean up missing entries.
+# PATCHED_BY_SCRIPT_VERSION: v3.5.27 | Added a pre-emptive network check to prevent GUI freeze when offline. The update process now immediately fails if no internet connection is detected.
 
 # -*- coding: utf-8 -*-
 
@@ -70,7 +70,7 @@ def get_resource_path(relative_path):
 
 # ---- Global variables from original script
 # ---- These will be managed as instance attributes in the main class
-APP_VERSION = "v3.1.1"
+APP_VERSION = "v3.1.2"
 APP_TITLE = "Kodi TextureTool"
 APP_AUTHOR = "Chris Bertrand"
 BUILD_DATE = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
@@ -286,12 +286,21 @@ class UpdateCheckWorker(QObject):
     
     def __init__(self, url): super().__init__(); self.url = url
     def run(self):
+        import socket
+        original_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(5)  # Set a shorter, more responsive global timeout.
         try:
             req = urllib.request.Request(self.url, headers={'User-Agent': 'KodiTextureTool-Update-Checker'})
-            with urllib.request.urlopen(req, timeout=15) as response:
-                if response.status == 200: self.finished.emit(json.loads(response.read().decode('utf-8')))
-                else: self.error.emit(f"Server returned status {response.status}")
-        except Exception as e: self.error.emit(f"Failed to check for updates: {e}")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.status == 200:
+                    self.finished.emit(json.loads(response.read().decode('utf-8')))
+                else:
+                    self.error.emit(f"Server returned status {response.status}")
+        except Exception as e:
+            self.error.emit(f"Failed to check for updates: {e}")
+        finally:
+            # IMPORTANT: Always restore the original timeout to not affect other network operations.
+            socket.setdefaulttimeout(original_timeout)
 class DownloadWorker(QObject):
     progress = Signal(int)
     finished = Signal(str)
@@ -755,6 +764,8 @@ class TextureToolApp(QMainWindow):
     COLOR_ORANGE = "#D08770"
      # For '[LOAD]'
     COLOR_DEFAULT = "#D8DEE9"
+     # For 'Notifications Checking'
+    COLOR_SOFT_GOLD = "#D4AF37"
      # Default text color
     COLOR_NUMERIC = "#88C0D0"
     def __init__(self):
@@ -1233,9 +1244,11 @@ class TextureToolApp(QMainWindow):
         options_layout = QHBoxLayout()
         self.dupecheck_cb = QCheckBox("Enable dupecheck")
         self.dupecheck_cb.setToolTip("Prevents duplicate textures from being added during compilation.")
+        self.dupecheck_cb.toggled.connect(self._on_dupecheck_toggled)
         self.dev_mode_cb = QCheckBox("Dev mode")
         self.dev_mode_cb.setToolTip("Enable developer mode features. Requires hotkey (Shift+Alt+D) to enable.")
         self.dev_mode_cb.setEnabled(False)
+        self.dev_mode_cb.toggled.connect(self._on_dev_mode_toggled)
         self.help_support_btn = QPushButton("Help/Support")
         self.help_support_btn.setToolTip("Open the Kodi forum thread for help and support.")
         self.reload_all_btn = QPushButton(qta.icon('fa5s.sync-alt'), " Reload All")
@@ -1501,16 +1514,19 @@ QSplitter::handle:vertical:hover {
         self.aDiagnosticMessages.append(message)
     def _log_message(self, message):
         """
-    Logs a single message to the GUI and the log file, then ensures it's visible.
-    This function is thread-safe. For batch operations, use the log_message_buffer instead.
-    """
+Logs a single message to the GUI and the log file, then ensures it's visible.
+This function is thread-safe. For batch operations, use the log_message_buffer instead.
+"""
         with self.log_lock:
             html_message, display_message = self._format_log_message(message)
 
             self.file_logger.write(display_message)
             if hasattr(self, 'log_widget'):
                 self.log_widget.append(html_message)
-                self.log_widget.ensureCursorVisible()
+                # --- REGRESSION FIX: Force scroll to the bottom ---
+                # This is more reliable than ensureCursorVisible() when dialogs are opened.
+                scrollbar = self.log_widget.verticalScrollBar()
+                scrollbar.setValue(scrollbar.maximum())
     def _clear_log(self):
         """Clears the log widget and restarts the file log. This is thread-safe."""
         with self.log_lock:
@@ -1523,17 +1539,22 @@ QSplitter::handle:vertical:hover {
         """Copies the entire content of the log widget to the clipboard."""
         QApplication.clipboard().setText(self.log_widget.toPlainText())
         self._log_message("[INFO] Log content copied to clipboard.")
-
-    def _show_tray_message(self, title, message, icon=QSystemTrayIcon.MessageIcon.Information):
-        """A helper function to show a system tray notification."""
+    def _show_tray_message(self, title, message, icon=None):
+        """
+    A helper function to show a system tray notification.
+    Accepts QIcon objects or QSystemTrayIcon.MessageIcon enums.
+    """
         if hasattr(self, "tray_icon") and self.tray_icon.isVisible():
-            self.tray_icon.showMessage(title, message, icon, 3000)
+            # If no icon is provided, default to the Information enum.
+            final_icon = icon if icon is not None else QSystemTrayIcon.MessageIcon.Information
+            # PySide6's showMessage is overloaded and correctly handles both QIcon and MessageIcon.
+            self.tray_icon.showMessage(title, message, final_icon, 3000)
     def _show_vcredist_notification(self):
         """Shows a notification about Visual C++ Redistributable if checks fail."""
         self._log_message("[INFO] Prompting user to install required VC++ Runtimes.")
         msg_box = QMessageBox(self)
         msg_box.setWindowIcon(self.app_icon)
-        msg_box.setWindowTitle("Kodi TextureTool - Visual C++ Redistributable Required")
+        msg_box.setWindowTitle(f"{APP_TITLE} - Visual C++ Redistributable Required")
         msg_box.setTextFormat(Qt.TextFormat.RichText)
         msg_box.setText("<b>TextureTool Notice</b><br><br>"
                         "TextureTool requires a <b>specific</b> version of the Visual C++ 2010 Redistributable for Visual Studio.<br><br>"
@@ -2260,75 +2281,55 @@ QSplitter::handle:vertical:hover {
         install_runtimes_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
         install_runtimes_action.triggered.connect(self._install_runtimes)
         options_menu.addAction(install_runtimes_action)
-
         help_menu = menu_bar.addMenu("&Help")
-
         about_action = QAction(qta.icon('fa5s.info-circle'), "&About", self)
         about_action.setToolTip("Show application information")
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
-
         changelog_action = QAction("&View Changelog", self)
         changelog_action.setToolTip("View the application's version history and changes")
         changelog_action.setIcon(qta.icon('fa5s.file-alt'))
         changelog_action.triggered.connect(self._show_changelog_dialog)
         help_menu.addAction(changelog_action)
-
         help_action = QAction(qta.icon('fa5s.question-circle'), "&View Help File", self)
         help_action.setToolTip("Open the detailed help documentation")
         help_action.triggered.connect(self._show_help_dialog)
         help_menu.addAction(help_action)
-
         help_menu.addSeparator()
-
         self.update_action = QAction("&Check for Updates...", self)
         self.update_action.setIcon(qta.icon('fa5s.cloud-download-alt'))
         self.update_action.triggered.connect(lambda: self._check_for_updates(manual=True))
-        # Set the initial state to disabled. It will be enabled later if checks pass.
         self.update_action.setEnabled(False)
         self.update_action.setToolTip("Disabled. Requires the VC++ Runtimes to be installed.")
         help_menu.addAction(self.update_action)
+        help_menu.addSeparator()
+        self.dev_update_action = QAction(qta.icon('fa5s.vial'), "&Check for Dev Update URL...", self)
+        self.dev_update_action.setToolTip("Manually provide a URL to a version.json file for update testing.")
+        self.dev_update_action.setVisible(False)
+        self.dev_update_action.triggered.connect(self._check_for_updates_dev)
+        help_menu.addAction(self.dev_update_action)
     def _compare_versions(self, version1, version2):
         def _normalize(v):
             try: return [int(p) for p in v.lstrip('v').split('.')]
             except (ValueError, AttributeError): return [0]
         return _normalize(version2) > _normalize(version1)
     def _check_for_updates(self, manual=False):
-        if self.update_thread is not None:
-            self._log_message("[WARN] An update check is already in progress.")
-            return
-        if any(
-            thread is not None
-            for thread in (self.decompile_thread, self.compile_thread, self.installer_thread)
-        ):
-            self._log_message("[WARN] Cannot check for updates, another critical task is running.")
-            return
-        self._log_message(f'[INFO] {datetime.now().strftime("%H:%M:%S")}: Checking KittmasterRepo repository for an update. [Started]')
-        if not manual:
-            self._show_tray_message(APP_TITLE, "Checking for updates...", QSystemTrayIcon.MessageIcon.Information)
-        else:
-            self._log_message("[INFO] Manually checking for updates.")
-
-        self.update_thread = QThread(self) # CRITICAL FIX: Parent the thread to self.
-        self.update_worker = UpdateCheckWorker('https://raw.githubusercontent.com/kittmaster/KodiTextureTool/main/version.json')
-        self.update_worker.moveToThread(self.update_thread)
-
-        self.update_worker.finished.connect(functools.partial(self._on_update_check_finished, manual=manual))
-        self.update_worker.error.connect(functools.partial(self._on_update_check_error, manual=manual))
-        self.update_thread.started.connect(self.update_worker.run)
-        self.update_thread.finished.connect(self.update_worker.deleteLater)
-        self.update_thread.finished.connect(self.update_thread.deleteLater)
-
-        self.update_thread.start()
-    
+        """Public-facing method to check for updates from the official URL."""
+        prod_url = 'https://raw.githubusercontent.com/kittmaster/KodiTextureTool/main/version.json'
+        self._start_update_check(prod_url, manual)
     def _on_update_check_error(self, err, manual):
         self._log_message(f'[INFO] {datetime.now().strftime("%H:%M:%S")}: Checking KittmasterRepo repository for an update. [Complete]')
         self._log_message(f"[ERROR] Update check failed: {err}")
         if manual:
+            self.status_label.setText("Update check failed.")
+            self._reset_ui_state()
             msg_box = QMessageBox(self)
             msg_box.setWindowIcon(self.app_icon)
-            msg_box.setWindowTitle("Update Check Failed")
-            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setWindowTitle(f"{APP_TITLE} - Update Check Failed")
+            # --- PATCH START: Use a custom, more appropriate icon ---
+            icon_pixmap = qta.icon('fa5s.times-circle', color=self.COLOR_RED).pixmap(QSize(64, 64))
+            msg_box.setIconPixmap(icon_pixmap)
+            # --- PATCH END ---
             msg_box.setText(f"Could not check for updates.\n\nDetails: {err}")
             ok_button = msg_box.addButton(QMessageBox.StandardButton.Ok)
             ok_button.setMinimumSize(100, 30)
@@ -2349,8 +2350,8 @@ QSplitter::handle:vertical:hover {
             self._log_message("[ERROR] changelog.txt not found.")
             msg_box = QMessageBox(self)
             msg_box.setWindowIcon(self.app_icon)
-            msg_box.setWindowTitle("File Not Found")
-            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setWindowTitle(f"{APP_TITLE} - File Not Found")
+            msg_box.setIcon(QMessageBox.Icon.Critical)
             msg_box.setText("The changelog.txt file could not be found.")
             ok_button = msg_box.addButton(QMessageBox.StandardButton.Ok)
             ok_button.setMinimumSize(100, 30)
@@ -2361,26 +2362,45 @@ QSplitter::handle:vertical:hover {
         self.update_thread = None
         self.update_worker = None
     def _handle_update_ui(self, data, manual):
+        from urllib.parse import urlsplit, urlunsplit, quote
         latest_version = data.get("latest_version")
         if not latest_version:
             self._log_message("[ERROR] version.json is missing 'latest_version' key.")
+            if manual:
+                self._reset_ui_state()
             return
 
         if self._compare_versions(APP_VERSION, latest_version):
             self._log_message(f"[INFO] New version available: {latest_version}")
-            download_url = data.get("update_package_url", "https://github.com/kittmaster/KodiTextureTool/releases/latest")
+            # --- PATCH START: Show contextual tray notification ---
+            update_available_icon = qta.icon('fa5s.cloud-download-alt', color='#88c0d0')
+            self._show_tray_message("Update Available", f"Version {latest_version} is ready to download.", update_available_icon)
+            # --- PATCH END ---
+            download_url_raw = data.get("update_package_url", "https://github.com/kittmaster/KodiTextureTool/releases/latest")
             changelog_items = data.get("changelog", ["No changelog available."])
-
-            # Format the changelog from the JSON data into an HTML string
-            changelog_html = "<br>".join([f"  {item}" for item in changelog_items])
-
+            changelog_html_parts = []
+            for i, item in enumerate(changelog_items):
+                clean_item = item.strip()
+                if clean_item.startswith("- v"):
+                    if i > 0:
+                        changelog_html_parts.append("")
+                    changelog_html_parts.append(f"<b>{clean_item}</b>")
+                else:
+                    changelog_html_parts.append(f"&nbsp;&nbsp;{clean_item}")
+            changelog_html = "<br>".join(changelog_html_parts)
             self._log_message("[INFO] Prompting user to download new version.")
-
-            # Use the new, nested UpdateDialog class
             dialog = self.UpdateDialog(latest_version, changelog_html, self)
-
-            # Check if the user clicked the "Yes" button
             if dialog.exec() == QDialog.DialogCode.Accepted:
+                try:
+                    parts = urlsplit(download_url_raw)
+                    safe_path = quote(parts.path)
+                    download_url = urlunsplit(parts._replace(path=safe_path))
+                    self._log_message(f"[INFO] Sanitized download URL: {download_url}")
+                except Exception as e:
+                    self._log_message(f"[ERROR] Could not parse download URL '{download_url_raw}': {e}. Aborting update.")
+                    QMessageBox.critical(self, "Download Error", f"The provided update URL is invalid:\n\n{download_url_raw}")
+                    self._reset_ui_state()
+                    return
                 self.update_progress_dialog = UpdateProgressDialog(self)
                 self.update_progress_dialog.show()
                 self.download_thread = QThread()
@@ -2388,29 +2408,39 @@ QSplitter::handle:vertical:hover {
                 self.download_worker.moveToThread(self.download_thread)
                 self.download_worker.progress.connect(self.update_progress_dialog.update_progress)
                 self.download_worker.finished.connect(self._trigger_install)
-                self.download_worker.error.connect(lambda err: QMessageBox.critical(self, "Download Error", err))
+                self.download_worker.error.connect(self._on_download_error)
                 self.download_thread.started.connect(self.download_worker.run)
                 self.download_thread.finished.connect(self.download_thread.quit)
                 self.download_worker.finished.connect(self.download_worker.deleteLater)
                 self.download_thread.finished.connect(self.download_thread.deleteLater)
                 self.download_thread.start()
+            else:
+                if manual:
+                    self._reset_ui_state()
         elif manual:
             self._log_message("[INFO] Application is up to date.")
+            self._reset_ui_state()
             msg_box = QMessageBox(self)
             msg_box.setWindowIcon(self.app_icon)
-            #msg_box.setWindowTitle("Up to Date")
-            msg_box.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Up to Date")
+            msg_box.setWindowTitle(f"{APP_TITLE} - Up to Date")
             msg_box.setText(f"You are running the latest version: {APP_VERSION}")
-            msg_box.setIcon(QMessageBox.Icon.Information)
+
+            # --- PATCH START: Use a custom, more appropriate icon ---
+            icon_pixmap = qta.icon('fa5s.check-circle', color=self.COLOR_GREEN).pixmap(QSize(64, 64))
+            msg_box.setIconPixmap(icon_pixmap)
+            # --- PATCH END ---
+
             msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
             ok_button = msg_box.button(QMessageBox.StandardButton.Ok)
             ok_button.setMinimumSize(100, 30)
             msg_box.exec()
         else:
             self._log_message("[INFO] Application is up to date.")
-            self._show_tray_message("Up to Date", f"You are running the latest version: {APP_VERSION}", QSystemTrayIcon.MessageIcon.Information)
+            # --- PATCH START: Use contextual icon for tray notification ---
+            up_to_date_icon = qta.icon('fa5s.check-circle', color=self.COLOR_GREEN)
+            self._show_tray_message("Up to Date", f"You are running the latest version: {APP_VERSION}", up_to_date_icon)
+            # --- PATCH END ---
         self._log_message(f'[INFO] {datetime.now().strftime("%H:%M:%S")}: Checking KittmasterRepo repository for an update... [Complete]')
-    
     def _trigger_install(self, zip_path):
         if not self.workspace_dir:
             self._log_message("[ERROR] Cannot install update: workspace directory is not available.")
@@ -2424,15 +2454,8 @@ QSplitter::handle:vertical:hover {
         executable_path = sys.executable
         app_exe_to_kill = os.path.basename(executable_path)
 
-        if "python" in app_exe_to_kill.lower():
-            # Running as a script, e.g., "C:\Python\python.exe" "D:\App\script.py"
-            main_script_path = os.path.join(app_dir, key_file_to_find)
-            relaunch_cmd = f'"{executable_path}" "{main_script_path}"'
-        else:
-            # Running as a frozen exe, e.g., "D:\App\AppName.exe"
-            relaunch_cmd = f'"{os.path.join(app_dir, app_exe_to_kill)}"'
-
-        batch_script_template = '''@echo off
+        # The relaunch_cmd is now fully constructed inside the batch script to handle the _internal path correctly.
+        batch_script_template = """@echo off
 setlocal enabledelayedexpansion
 
 echo --- Kodi TextureTool Updater ---
@@ -2461,7 +2484,7 @@ mkdir "%EXTRACT_TEMP_DIR%"
 :: Extract update archive
 echo.
 echo Extracting update from "%ZIP_PATH%"...
-powershell -ExecutionPolicy Bypass -NoProfile -Command "Expand-Archive -Path \\"%ZIP_PATH%\\" -DestinationPath \\"%EXTRACT_TEMP_DIR%\\" -Force"
+powershell -ExecutionPolicy Bypass -NoProfile -Command "Expand-Archive -Path \"%ZIP_PATH%\" -DestinationPath \"%EXTRACT_TEMP_DIR%\" -Force"
 if %errorlevel% neq 0 (
     echo ERROR: Failed to extract the update archive.
     pause
@@ -2489,13 +2512,13 @@ if not defined SOURCE_DIR (
     exit /b 1
 )
 
-:: Copy updated files using a robust method
+:: Copy updated files using a robust method to the PARENT directory
 echo.
 echo Moving updated files into place...
 cd /d "%SOURCE_DIR%"
 echo Source: "%CD%"
-echo Destination: "%APP_DIR%"
-robocopy . "%APP_DIR%" /E /IS /IT /NFL /NDL /NJH /NJS
+echo Destination: "%APP_DIR%\\.."
+robocopy . "%APP_DIR%\\.." /E /IS /IT /NFL /NDL /NJH /NJS
 if %errorlevel% geq 8 (
     echo ERROR: Robocopy failed to move updated files. Your installation may be corrupt.
     pause
@@ -2509,20 +2532,19 @@ cd /d "%~dp0"
 rd /s /q "%EXTRACT_TEMP_DIR%"
 del "%ZIP_PATH%"
 
-:: Relaunch application from its own directory
+:: Relaunch application from its PARENT directory
 echo.
 echo Relaunching application...
-start "" /d "{app_dir}" {relaunch_cmd}
+start "" /d "%APP_DIR%\\.." "%APP_DIR%\\..\\%APP_EXE_TO_KILL%"
 
 :: Self-destruct the batch file and exit the window
 (goto) 2>nul & del "%~f0" & exit
-'''
+"""
         batch_script_content = batch_script_template.format(
             zip_path=zip_path,
             app_dir=app_dir,
             key_file_to_find=key_file_to_find,
-            app_exe_to_kill=app_exe_to_kill,
-            relaunch_cmd=relaunch_cmd
+            app_exe_to_kill=app_exe_to_kill
         )
         updater_path = os.path.join(self.workspace_dir, "update.bat")
         with open(updater_path, "w", encoding="utf-8") as f:
@@ -2542,6 +2564,7 @@ start "" /d "{app_dir}" {relaunch_cmd}
         self.open_pdf_on_complete = self.config.getboolean('Settings', 'open_pdf_on_complete', fallback=True)
         self.check_for_updates_on_startup = self.config.getboolean('Settings', 'check_for_updates_on_startup', fallback=True)
         self.log_on_top = self.config.getboolean('Settings', 'log_on_top', fallback=True)
+        self.dev_update_url = self.config.get('Settings', 'dev_update_url', fallback='https://raw.githubusercontent.com/kittmaster/KodiTextureTool/main/version.json')
     def _save_settings(self):
         """Saves current settings to the config file."""
         self.config.read(self.config_path, encoding='utf-8')
@@ -2552,6 +2575,7 @@ start "" /d "{app_dir}" {relaunch_cmd}
         self.config.set('Settings', 'open_pdf_on_complete', str(self.open_pdf_on_complete))
         self.config.set('Settings', 'check_for_updates_on_startup', str(self.check_for_updates_on_startup))
         self.config.set('Settings', 'log_on_top', str(self.log_on_top))
+        self.config.set('Settings', 'dev_update_url', str(self.dev_update_url))
         with open(self.config_path, 'w', encoding='utf-8') as configfile:
             self.config.write(configfile)
 
@@ -2569,12 +2593,13 @@ start "" /d "{app_dir}" {relaunch_cmd}
         self.close_all_btn.setEnabled(not locked)
         self.info_btn.setEnabled(not locked)
         self.menuBar().setEnabled(not locked)
-    
     def _enable_dev_mode(self):
-        '''Enables the Dev mode checkbox when the hotkey is pressed.'''
+        '''Enables the Dev mode checkbox, allowing it to be checked by the user.'''
         if not self.dev_mode_cb.isEnabled():
             self.dev_mode_cb.setEnabled(True)
             self._log_message("[INFO] Dev mode checkbox has been enabled by hotkey.")
+        else:
+            self._log_message("[INFO] Dev mode is already enabled.")
     def _update_previewer_ui(self):
         '''Updates the entire image previewer widget based on the current state.'''
         has_ui = hasattr(self, 'image_nav_slider')
@@ -3259,8 +3284,8 @@ start "" /d "{app_dir}" {relaunch_cmd}
                     pass
     def _process_log_message_buffer(self):
         """
-    Processes the entire log buffer in a single, efficient operation to prevent UI freezes and race conditions.
-    """
+Processes the entire log buffer in a single, efficient operation to prevent UI freezes and race conditions.
+"""
         if not self.log_message_buffer:
             self._reset_ui_after_task() # Ensure reset even if buffer is empty
             return
@@ -3282,7 +3307,9 @@ start "" /d "{app_dir}" {relaunch_cmd}
             # Step 3: Perform a single, efficient update to the UI.
             if hasattr(self, 'log_widget') and all_html:
                 self.log_widget.append("<br>".join(all_html))
-                self.log_widget.ensureCursorVisible()
+                # --- REGRESSION FIX: Force scroll to the bottom ---
+                scrollbar = self.log_widget.verticalScrollBar()
+                scrollbar.setValue(scrollbar.maximum())
 
         # Step 4: Now that all work is truly complete, log the final message and reset the UI.
         self._log_message("[INFO] ----- Log Rendering Complete -----")
@@ -3432,9 +3459,9 @@ start "" /d "{app_dir}" {relaunch_cmd}
             from PySide6.QtWidgets import QScrollArea, QSizePolicy
 
             #self.setWindowTitle("Update Available!")
-            self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Update Available!")
+            self.setWindowTitle(f"{APP_TITLE} - Update Available!")
             self.setWindowIcon(parent.app_icon if parent else QIcon())
-            self.setMinimumWidth(550)
+            self.setMinimumWidth(600)
 
             main_layout = QVBoxLayout(self)
             main_layout.setSpacing(10)
@@ -3449,10 +3476,12 @@ start "" /d "{app_dir}" {relaunch_cmd}
             content_h_layout = QHBoxLayout()
 
             icon_label = QLabel()
-            # Explicitly use SmoothTransformation for high-quality scaling
-            icon_pixmap = QPixmap(get_resource_path("assets/kodi_logo_96.png")).scaled(
-                64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-            )
+
+            # --- PATCH START: Use a contextual update icon instead of the brand logo ---
+            update_icon = qta.icon('fa5s.cloud-download-alt', color='#88c0d0') # Use theme accent color
+            icon_pixmap = update_icon.pixmap(QSize(64, 64))
+            # --- PATCH END ---
+
             icon_label.setPixmap(icon_pixmap)
             # The label size MUST match the pixmap size to prevent jagged re-scaling
             icon_label.setFixedSize(70, 70)
@@ -3484,11 +3513,11 @@ start "" /d "{app_dir}" {relaunch_cmd}
             scroll_layout.setContentsMargins(15, 15, 15, 15)
 
             informative_content = f"""
-        <b>Version: {version}</b>
-        <br><br>
-        <b>Changes:</b><br>
-        {changelog_html}
-    """
+    <b>Version: {version}</b>
+    <br><br>
+    <b>Changes:</b><br>
+    {changelog_html}
+"""
             content_label = QLabel(informative_content.strip())
             content_label.setTextFormat(Qt.TextFormat.RichText)
             content_label.setWordWrap(True)
@@ -3522,6 +3551,119 @@ start "" /d "{app_dir}" {relaunch_cmd}
             button_box.addStretch()
 
             main_layout.addLayout(button_box)
+    def _start_update_check(self, url, manual):
+        """Core logic to start the update worker with a given URL after a pre-emptive network check."""
+        # --- PRE-EMPTIVE NETWORK CHECK ---
+        if not self._is_network_available():
+            err_msg = "No internet connection detected."
+            self._log_message(f"[ERROR] Update check failed: {err_msg}")
+            if manual:
+                # We can call the error handler directly because we know the cause.
+                self._on_update_check_error(err_msg, manual=True)
+            return # Abort the update check entirely.
+
+        if self.update_thread is not None:
+            self._log_message("[WARN] An update check is already in progress.")
+            return
+        if any(
+            thread is not None
+            for thread in (self.decompile_thread, self.compile_thread, self.installer_thread)
+        ):
+            self._log_message("[WARN] Cannot check for updates, another critical task is running.")
+            return
+
+        self._log_message(f'[INFO] {datetime.now().strftime("%H:%M:%S")}: Checking for update from {url}. [Started]')
+        if manual:
+            self._log_message("[INFO] Manually checking for updates.")
+            self.status_label.setText("Checking for updates...")
+        else:
+            #checking_icon = qta.icon('fa5s.cloud-download-alt', color='#D4AF37') # Soft gold color
+            checking_icon = qta.icon('mdi.cloud-search-outline', color=self.COLOR_SOFT_GOLD)  # Soft gold color
+            self._show_tray_message(APP_TITLE, "Checking for updates...", checking_icon)
+
+        self.update_thread = QThread(self)
+        self.update_worker = UpdateCheckWorker(url)
+        self.update_worker.moveToThread(self.update_thread)
+        self.update_worker.finished.connect(functools.partial(self._on_update_check_finished, manual=manual))
+        self.update_worker.error.connect(functools.partial(self._on_update_check_error, manual=manual))
+        self.update_thread.started.connect(self.update_worker.run)
+        self.update_thread.finished.connect(self.update_worker.deleteLater)
+        self.update_thread.finished.connect(self.update_thread.deleteLater)
+        self.update_thread.start()
+    def _check_for_updates_dev(self):
+        """Prompts the user for a custom version.json URL and starts the update check."""
+        from PySide6.QtWidgets import QInputDialog, QLineEdit, QPushButton
+
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("Developer Update Check")
+        dialog.setLabelText("Enter the full URL to the version.json file for testing:")
+        dialog.setTextValue(self.dev_update_url)
+        dialog.setInputMode(QInputDialog.InputMode.TextInput)
+
+        # Find and style the buttons for consistency
+        buttons = dialog.findChildren(QPushButton)
+        for button in buttons:
+            button.setMinimumSize(100, 30)
+
+        ok = dialog.exec()
+        url = dialog.textValue()
+
+        if ok and url:
+            self.dev_update_url = url
+            self._save_settings()
+            if not url.startswith(('http://', 'https://')):
+                url = 'http://' + url
+                self._log_message(f"[INFO] Prepended 'http://' to dev URL: {url}")
+            self._start_update_check(url, manual=True)
+        else:
+            self._log_message("[INFO] Developer update check cancelled.")
+    def _on_download_error(self, error_message):
+        """A thread-safe slot to handle and display download errors."""
+        self._log_message(f"[ERROR] Download failed: {error_message}")
+        if self.update_progress_dialog:
+            self.update_progress_dialog.close()
+
+        QMessageBox.critical(self, "Download Error", f"Failed to download the update package.\n\nDetails: {error_message}")
+
+        # Clean up the worker and thread
+        if self.download_thread:
+            self.download_thread.quit()
+            self.download_thread.wait()
+        self.download_thread = None
+        self.download_worker = None
+        self._reset_ui_after_task()
+    def _reset_ui_state(self):
+        '''Resets UI controls and status label without touching thread handles.'''
+        self._set_ui_task_active(False)
+        self._update_button_states()
+        QTimer.singleShot(2000, self._finalize_ui_reset)
+    def _on_dev_mode_toggled(self, checked):
+        '''Handles the toggling of the dev mode checkbox.'''
+        self.dev_update_action.setVisible(checked)
+        status = "activated" if checked else "deactivated"
+        self._log_message(f"[INFO] Dev mode has been {status}.")
+    def _on_dupecheck_toggled(self, checked):
+        '''Handles the toggling of the dupecheck checkbox.'''
+        status = "enabled" if checked else "disabled"
+        self._log_message(f"[INFO] Dupecheck has been {status}.")
+    def _is_network_available(self):
+        """
+    Checks for a live internet connection by attempting to connect to a reliable
+    external server with a very short timeout. Returns True if successful, False otherwise.
+    """
+        import socket
+        # Use a reliable, common DNS server for the check.
+        # Port 53 is for DNS, which is a good indicator of general internet access.
+        host = "8.8.8.8"
+        port = 53
+        timeout = 2  # Seconds
+        try:
+            socket.setdefaulttimeout(timeout)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+            return True
+        except (socket.error, TimeoutError) as ex:
+            self._log_message(f"[INFO] Network availability check failed: {ex}")
+            return False
     
 class ChangelogDialog(QDialog):
 
@@ -3551,7 +3693,6 @@ class HelpDialog(QDialog):
         from PySide6.QtCore import Qt, Slot, QUrl, QBuffer, QIODevice
         from PySide6.QtGui import QPixmap, QTextDocument
 
-        #self.setWindowTitle("Kodi TextureTool Help")
         self.setWindowTitle(f"{APP_TITLE} - {APP_VERSION} - Help")
         self.setMinimumSize(800, 600)
         self.resize(1250, 800)

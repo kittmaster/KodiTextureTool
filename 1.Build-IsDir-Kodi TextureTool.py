@@ -78,7 +78,8 @@ try:
     source_dir = os.path.join("dist", APP_NAME)
     
     if os.path.isdir(source_dir):
-        zip_filename_base = f"{APP_NAME}-{app_version}"
+        # FIX: Replace spaces in the generated filename with periods for URL safety.
+        zip_filename_base = f"{APP_NAME}-v3".replace(' ', '.')
         zip_output_path = os.path.join("dist", zip_filename_base)
         
         # Using root_dir makes the archive flat (contains files, not the parent folder)

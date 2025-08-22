@@ -8,8 +8,8 @@ init(autoreset=True)
 
 # --- SCRIPT CONFIGURATION ---
 TARGET_FILE = "Kodi TextureTool.py"
-BACKUP_VERSION = "v3.5.9" # The new version you are applying
-PATCH_DESCRIPTION = "Added validation for recent files to prevent crashes and clean up missing entries." # (NEW) A summary of the patch's changes.
+BACKUP_VERSION = "v3.5.27" # The new version you are applying
+PATCH_DESCRIPTION = "Added a pre-emptive network check to prevent GUI freeze when offline. The update process now immediately fails if no internet connection is detected." # (NEW) A summary of the patch's changes.
 BACKUP_FILE = f"{TARGET_FILE}.bak.{BACKUP_VERSION}"
 
 # The generic prefix is used for checking if a patch from ANY version exists.
@@ -26,102 +26,70 @@ MODULE_LEVEL_DIRECTIVES = {
 
 # Use this to REPLACE the entire body of an existing function.
 REPLACEMENT_DIRECTIVES = {
-    "TextureToolApp._open_recent_compile_file": """
-    def _open_recent_compile_file(self, path):
-        if os.path.exists(path):
-            self.compile_output_file = path
-            _display_path_1 = os.path.basename(path)
-            self.compile_output_label.setText(f"..\\\\{os.path.basename(_display_path_1)}")
-            self.compile_output_label.setToolTip(_display_path_1)
-            self.compile_output_label.setToolTip(path)
-            self.compile_output_label.setProperty("state", "selected")
-            self.compile_output_label.style().unpolish(self.compile_output_label)
-            self.compile_output_label.style().polish(self.compile_output_label)
-            self._set_config_path('compileoutput', os.path.dirname(path))
-            self._log_message(f'[DATA] Path to output file: "{os.path.normpath(self.compile_output_file)}"')
-            self._log_message("[INFO] Output folder destination loaded successfully.")
-            self._update_button_states()
-            self._update_status_label()
+    "TextureToolApp._start_update_check": '''
+    def _start_update_check(self, url, manual):
+        """Core logic to start the update worker with a given URL after a pre-emptive network check."""
+        # --- PRE-EMPTIVE NETWORK CHECK ---
+        if not self._is_network_available():
+            err_msg = "No internet connection detected."
+            self._log_message(f"[ERROR] Update check failed: {err_msg}")
+            if manual:
+                # We can call the error handler directly because we know the cause.
+                self._on_update_check_error(err_msg, manual=True)
+            return # Abort the update check entirely.
+
+        if self.update_thread is not None:
+            self._log_message("[WARN] An update check is already in progress.")
+            return
+        if any(
+            thread is not None
+            for thread in (self.decompile_thread, self.compile_thread, self.installer_thread)
+        ):
+            self._log_message("[WARN] Cannot check for updates, another critical task is running.")
+            return
+
+        self._log_message(f'[INFO] {datetime.now().strftime("%H:%M:%S")}: Checking for update from {url}. [Started]')
+        if manual:
+            self._log_message("[INFO] Manually checking for updates.")
+            self.status_label.setText("Checking for updates...")
         else:
-            self._log_message(f"[WARN] Recent compile file not found, removing from list: {path}")
-            self.recent_compile_files.remove(path)
-            self._save_recent()
-            self._update_recent_menus()
-            QMessageBox.warning(self, "Recent File Not Found", f"The recent compile file could not be found and has been removed from the list:\\n\\n{path}")
-    """,
-    "TextureToolApp._open_recent_compile_folder": """
-    def _open_recent_compile_folder(self, path):
-        if os.path.exists(path):
-            self.compile_input_folder = path
-            _display_path_2 = os.path.basename(path)
-            self.compile_input_label.setText(f"..\\\\{os.path.basename(_display_path_2)}")
-            self.compile_input_label.setToolTip(_display_path_2)
-            self.compile_input_label.setToolTip(path)
-            self.compile_input_label.setProperty("state", "selected")
-            self.compile_input_label.style().unpolish(self.compile_input_label)
-            self.compile_input_label.style().polish(self.compile_input_label)
-            self._set_config_path('compileinput', path)
-            self._log_message(f'[DATA] Path to directory: "{os.path.normpath(self.compile_input_folder)}"')
-            self._log_message("[INFO] Image folder input selection loaded successfully.")
-            self._update_button_states()
-            self._update_status_label()
-        else:
-            self._log_message(f"[WARN] Recent compile folder not found, removing from list: {path}")
-            self.recent_compile_folders.remove(path)
-            self._save_recent()
-            self._update_recent_menus()
-            QMessageBox.warning(self, "Recent Folder Not Found", f"The recent compile folder could not be found and has been removed from the list:\\n\\n{path}")
-    """,
-    "TextureToolApp._open_recent_decompile_file": """
-    def _open_recent_decompile_file(self, path):
-        if os.path.exists(path):
-            self.decompile_input_file = path
-            _display_path_3 = os.path.basename(path)
-            self.decompile_input_label.setText(f"..\\\\{os.path.basename(_display_path_3)}")
-            self.decompile_input_label.setToolTip(_display_path_3)
-            self.decompile_input_label.setToolTip(path)
-            self.decompile_input_label.setProperty("state", "selected")
-            self.decompile_input_label.style().unpolish(self.decompile_input_label)
-            self.decompile_input_label.style().polish(self.decompile_input_label)
-            self._set_config_path('decompileinput', os.path.dirname(path))
-            self._log_message(f'[DATA] Decompile input file: "{os.path.normpath(self.decompile_input_file)}"')
-            self._log_message("[INFO] Input selection loaded successfully.")
-            self._update_button_states()
-            self._update_status_label()
-        else:
-            self._log_message(f"[WARN] Recent decompile file not found, removing from list: {path}")
-            self.recent_decompile_files.remove(path)
-            self._save_recent()
-            self._update_recent_menus()
-            QMessageBox.warning(self, "Recent File Not Found", f"The recent decompile file could not be found and has been removed from the list:\\n\\n{path}")
-    """,
-    "TextureToolApp._open_recent_decompile_folder": """
-    def _open_recent_decompile_folder(self, path):
-        if os.path.exists(path):
-            self.decompile_output_folder = path
-            _display_path_4 = os.path.basename(path)
-            self.decompile_output_label.setText(f"..\\\\{os.path.basename(_display_path_4)}")
-            self.decompile_output_label.setToolTip(_display_path_4)
-            self.decompile_output_label.setToolTip(path)
-            self.decompile_output_label.setProperty("state", "selected")
-            self.decompile_output_label.style().unpolish(self.decompile_output_label)
-            self.decompile_output_label.style().polish(self.decompile_output_label)
-            self._set_config_path('decompileoutput', path)
-            self._log_message(f'[DATA] Decompile output directory: "{os.path.normpath(self.decompile_output_folder)}"')
-            self._log_message("[INFO] Output folder destination loaded successfully.")
-            self._update_button_states()
-            self._update_status_label()
-        else:
-            self._log_message(f"[WARN] Recent decompile folder not found, removing from list: {path}")
-            self.recent_decompile_folders.remove(path)
-            self._save_recent()
-            self._update_recent_menus()
-            QMessageBox.warning(self, "Recent Folder Not Found", f"The recent decompile folder could not be found and has been removed from the list:\\n\\n{path}")
-    """,
+            checking_icon = qta.icon('fa5s.cloud-download-alt', color='#D4AF37') # Soft gold color
+            self._show_tray_message(APP_TITLE, "Checking for updates...", checking_icon)
+
+        self.update_thread = QThread(self)
+        self.update_worker = UpdateCheckWorker(url)
+        self.update_worker.moveToThread(self.update_thread)
+        self.update_worker.finished.connect(functools.partial(self._on_update_check_finished, manual=manual))
+        self.update_worker.error.connect(functools.partial(self._on_update_check_error, manual=manual))
+        self.update_thread.started.connect(self.update_worker.run)
+        self.update_thread.finished.connect(self.update_worker.deleteLater)
+        self.update_thread.finished.connect(self.update_thread.deleteLater)
+        self.update_thread.start()
+    ''',
 }
 
 # Use this to ADD one or more brand new methods to a class.
 METHODS_TO_ADD = {
+    "TextureToolApp": '''
+    def _is_network_available(self):
+        """
+        Checks for a live internet connection by attempting to connect to a reliable
+        external server with a very short timeout. Returns True if successful, False otherwise.
+        """
+        import socket
+        # Use a reliable, common DNS server for the check.
+        # Port 53 is for DNS, which is a good indicator of general internet access.
+        host = "8.8.8.8"
+        port = 53
+        timeout = 2  # Seconds
+        try:
+            socket.setdefaulttimeout(timeout)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+            return True
+        except (socket.error, TimeoutError) as ex:
+            self._log_message(f"[INFO] Network availability check failed: {ex}")
+            return False
+    ''',
 }
 
 # Use this to DELETE one or more methods from a class by name.

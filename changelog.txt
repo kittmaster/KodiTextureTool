@@ -1,43 +1,51 @@
 <pre style="color: #d8dee9; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif; padding-left: 10px;">
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.2 - Update & Changelog Features</span>
+	- 🐍 Fixed a critical bug where the auto-updater would corrupt the installation.
+	- 🐍 Added validation for recent files to prevent crashes.
+	- 🐍 Fixed changelog and version dialog parser to respect line breaks.
+	- 🐍 Fixed GUI lock if no internet connection is present.
+	- 🐍 Replaced generic icons for updater systray notifications.	
+
 <span style="color: #88c0d0; font-weight: bold;">   v3.1.1 - Update & Changelog Features</span>
-       - 🐍 Updated progress bar method from event loop flooding causing a buffer overrun
-       - 🐍 Added "Reload All" fix path verification before load and discard invalid paths
+	- 🐍 Updated progress bar method from event loop flooding causing a buffer overrun.
+	- 🐍 Added "Reload All" fix path verification before load and discard invalid paths.
+
 <span style="color: #88c0d0; font-weight: bold;">   v3.1.0 - Update & Changelog Features</span>
-       - 🖼️ Added image previewer with navigation, metadata, and double-click open
-       - 🔍 Implemented search bar with match tracking and wraparound navigation
-       - 📄 Introduced PDF export with gallery layout and Kodi branding
-       - 🧵 Improved thread safety and cleanup for subprocesses and workers
-       - 🧪 Added Dev Mode toggle with command preview and diagnostic logging
-       - 📚 Integrated Markdown-based Help Dialog with TOC and font controls
-       - 🧰 Added internal DLL integrity checks with color-coded log output
-       - 🧠 Smart fallback for missing dependencies with graceful error handling
-       - 🧼 Enhanced UI lockout during tasks to prevent race conditions
-       - 🧠 Improved log rendering with chunked HTML updates and scroll sync
-       - 🧼 Cleaned up orphaned subprocesses on exit to prevent file locking
-       - 🧠 Added dynamic tooltip and label styling for selected/unselected states
-       - 🧼 Improved drag-and-drop support for both compile and decompile modes
-       - 🧠 Added window geometry reset and persistent layout settings
-       - 🧠 Refined update system with changelog preview and ZIP extraction       
-       - ✅ Converted from AutoIt to Python GUI with PySide6 skinning
-       - 🧠 Completely reimagined user interface
-       - 🪟 Familiar Windows-style menu system
-       - 🕘 Intelligent Recent Files/Folders with reload from last entry
-       - 🔐 Interlocked execution prevents invalid output without required runtimes
-       - 📦 Includes local silent C++ runtime installers (x86 & x64)
-       - ✨ Numerous syntax & spelling fixes
-       - 🗺️ Streamlined GUI layout & workflow
-       - 📋 Viewable local changelog within app
-       - 🚫 No installer needed — fully portable folder mode
-       - 🎨 Output window with status color accenting
-       - 💸 Donation links removed
-       - ⏫ Fully operational auto-updater
-       - 🧼 Deprecated modes removed & improved .xbt status updates
-       - 📁 Moves working files to system `\temp` for cleanup on exit
+	- 🖼️ Added image previewer with navigation, metadata, and double-click open.
+	- 🔍 Implemented search bar with match tracking and wraparound navigation.
+	- 📄 Introduced PDF export with gallery layout and Kodi branding.
+	- 🧵 Improved thread safety and cleanup for subprocesses and workers.
+	- 🧪 Added Dev Mode toggle with command preview and diagnostic logging.
+	- 📚 Integrated Markdown-based Help Dialog with TOC and font controls.
+	- 🧰 Added internal DLL integrity checks with color-coded log output.
+	- 🧠 Smart fallback for missing dependencies with graceful error handling.
+	- 🧼 Enhanced UI lockout during tasks to prevent race conditions.
+	- 🧠 Improved log rendering with chunked HTML updates and scroll sync.
+	- 🧼 Cleaned up orphaned subprocesses on exit to prevent file locking.
+	- 🧠 Added dynamic tooltip and label styling for selected/unselected states.
+	- 🧼 Improved drag-and-drop support for both compile and decompile modes.
+	- 🧠 Added window geometry reset and persistent layout settings.
+	- 🧠 Refined update system with changelog preview and ZIP extraction.
+	- ✅ Converted from AutoIt to Python GUI with PySide6 skinning.
+	- 🧠 Completely reimagined user interface.
+	- 🪟 Familiar Windows-style menu system.
+	- 🕘 Intelligent Recent Files/Folders with reload from last entry.
+	- 🔐 Interlocked execution prevents invalid output without required runtimes.
+	- 📦 Includes local silent C++ runtime installers (x86 & x64).
+	- ✨ Numerous syntax & spelling fixes.
+	- 🗺️ Streamlined GUI layout & workflow.
+	- 📋 Viewable local changelog within app.
+	- 🚫 No installer needed — fully portable folder mode.
+	- 🎨 Output window with status color accenting.
+	- 💸 Donation links removed.
+	- ⏫ Fully operational auto-updater.
+	- 🧼 Deprecated modes removed & improved .xbt status updates.
+	- 📁 Moves working files to system `\temp` for cleanup on exit.
 
 <span style="color: #88c0d0; font-weight: bold;">   v3.0.2 - Initial Release</span>
-       - 🐍 Converted original AutoIt script to Python and PySide6.
-       - 🌘 Modernized UI with a dark theme and Nord color palette.
-       - 🛠️ Replaced system calls with robust subprocess handling.
-       - 🧵 Introduced background threading for all long-running tasks.
-       - 🧾 Added comprehensive logging to GUI and file.
+	- 🐍 Converted original AutoIt script to Python and PySide6.
+	- 🌘 Modernized UI with a dark theme and Nord color palette.
+	- 🛠️ Replaced system calls with robust subprocess handling.
+	- 🧵 Introduced background threading for all long-running tasks.
+	- 🧾 Added comprehensive logging to GUI and file.
 </pre>
