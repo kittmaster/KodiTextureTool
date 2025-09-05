@@ -1,8 +1,12 @@
 {
-"latest_version": "v3.1.2",
-"release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.2",
-"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.2/Kodi.TextureTool-v3.zip",
+"latest_version": "v3.1.3",
+"release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.3",
+"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.3/Kodi.TextureTool-v3.zip",
 "changelog": [
+	"- v3.1.3 - Patch Release",
+	"- 🐉 Restored pixel data in the default BGRA order in compiler.",
+	"- 🐉 Explicitly writes the 'magic' legacy format code 0x10 into the .xbt header.",
+
 	"- v3.1.2 - Initial Release",
 	"- 🐍 Fixed a critical bug where the auto-updater would corrupt the installation.",
 	"- 🐍 Added validation for recent files to prevent crashes.",
@@ -10,11 +14,11 @@
 	"- 🐍 Fixed GUI lock if no internet connection is present.",
 	"- 🐍 Replaced generic icons for updater systray notifications.",	
 
-	"- v3.1.1 - Initial Release",
+	"- v3.1.1 - Beta Release",
 	"- 🐍 Updated progress bar method from event loop flooding causing a buffer overrun.",
 	"- 🐍 Added 'Reload All' fix path verification before load and discard invalid paths.",
 
-	"- v3.1.0 - Update & Changelog Features.",
+	"- v3.1.0 - Alpha 2 Release",
 	"- 🖼️ Added image previewer with navigation, metadata, and double-click open.",
 	"- 🔍 Implemented search bar with match tracking and wraparound navigation.",
 	"- 📄 Introduced PDF export with gallery layout and Kodi branding.",
@@ -46,7 +50,7 @@
 	"- 🧼 Deprecated modes removed & improved .xbt status updates.",
 	"- 📁 Moves working files to system '\\temp' for cleanup on exit.",
 
-	"- v3.0.2 - Initial Release",
+	"- v3.0.2 - Alpha 1 Release",
 	"- 🐍 Converted original AutoIt script to Python and PySide6.",
 	"- 🌘 Modernized UI with a dark theme and Nord color palette.",
 	"- 🛠️ Replaced system calls with robust subprocess handling.",

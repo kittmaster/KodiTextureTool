@@ -1,16 +1,20 @@
 <pre style="color: #d8dee9; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif; padding-left: 10px;">
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.2 - Update & Changelog Features</span>
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.3 - Patch Release</span>
+	- 🐉 Restored pixel data in the default BGRA order in compiler.
+	- 🐉 Explicitly writes the 'magic' legacy format code 0x10 into the .xbt header.	
+	
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.2 - Initial Release</span>
 	- 🐍 Fixed a critical bug where the auto-updater would corrupt the installation.
 	- 🐍 Added validation for recent files to prevent crashes.
 	- 🐍 Fixed changelog and version dialog parser to respect line breaks.
 	- 🐍 Fixed GUI lock if no internet connection is present.
 	- 🐍 Replaced generic icons for updater systray notifications.	
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.1 - Update & Changelog Features</span>
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.1 - Beta Release</span>
 	- 🐍 Updated progress bar method from event loop flooding causing a buffer overrun.
 	- 🐍 Added "Reload All" fix path verification before load and discard invalid paths.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.0 - Update & Changelog Features</span>
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.0 - Alpha 2 Release</span>
 	- 🖼️ Added image previewer with navigation, metadata, and double-click open.
 	- 🔍 Implemented search bar with match tracking and wraparound navigation.
 	- 📄 Introduced PDF export with gallery layout and Kodi branding.
@@ -42,7 +46,7 @@
 	- 🧼 Deprecated modes removed & improved .xbt status updates.
 	- 📁 Moves working files to system `\temp` for cleanup on exit.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.0.2 - Initial Release</span>
+<span style="color: #88c0d0; font-weight: bold;">   v3.0.2 - Alpha 1 Release</span>
 	- 🐍 Converted original AutoIt script to Python and PySide6.
 	- 🌘 Modernized UI with a dark theme and Nord color palette.
 	- 🛠️ Replaced system calls with robust subprocess handling.

@@ -70,7 +70,7 @@ def get_resource_path(relative_path):
 
 # ---- Global variables from original script
 # ---- These will be managed as instance attributes in the main class
-APP_VERSION = "v3.1.2"
+APP_VERSION = "v3.1.3"
 APP_TITLE = "Kodi TextureTool"
 APP_AUTHOR = "Chris Bertrand"
 BUILD_DATE = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
