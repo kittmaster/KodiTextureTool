@@ -50,6 +50,17 @@ Zero registry writes. Zero fuss.
 
 ---
 
+### 🪟 Platform Compatibility
+
+This tool is designed **exclusively for Windows 7/10/11**.  
+Due to deep integration with Windows-specific APIs, GUI frameworks (PySide6), and runtime dependencies, cross-platform support is not feasible.  
+
+Attempts to run on macOS or Linux — including via Wine or emulation — are **unsupported** and may result in unpredictable behavior or failure to launch.  
+
+Developers are welcome to explore the source code, but official support remains **Windows-only by design**.
+
+---
+
 ### 🌍 Translations
 
 Currently supports **U.S. English only**.  
