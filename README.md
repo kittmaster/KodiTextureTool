@@ -14,6 +14,9 @@
 
 ### 🔧 Features
 
+- 🌐 Unicode-aware logic for filenames, metadata, and UI
+- 🈚 Enables seamless handling of non-ASCII characters, emoji glyphs, and multilingual assets
+- 🧾 Prevents corruption, fallback artifacts, and encoding mismatches across platforms
 - ✅ Fully rewritten in Python using **PySide6** for modern GUI skinning
 - 🧠 Intuitive, **Nord-inspired dark theme** with dynamic color-coded logging
 - 🪟 Familiar Windows-style **menu system** with categorized recent items
