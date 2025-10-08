@@ -1,4 +1,10 @@
 <pre style="color: #d8dee9; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif; padding-left: 10px;">
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.4 - Patch Release</span>
+	- 🐉 Inverted the checkmark logic for the group position swap option to be more intuitive.
+	- 🐉 Added a pre-emptive network check to prevent GUI freeze when offline. The update process now immediately fails if no internet connection is detected.
+	- 🐉 Compile and decompile modules can now swap positions.
+	- 🐉 Fixed race condition between phase 1 and phase 2 of get info causing app crash.
+	
 <span style="color: #88c0d0; font-weight: bold;">   v3.1.3 - Patch Release</span>
 	- 🐉 Restored pixel data in the default BGRA order in compiler.
 	- 🐉 Explicitly writes the 'magic' legacy format code 0x10 into the .xbt header.	

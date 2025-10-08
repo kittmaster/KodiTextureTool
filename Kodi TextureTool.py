@@ -1,4 +1,4 @@
-# PATCHED_BY_SCRIPT_VERSION: v3.5.27 | Added a pre-emptive network check to prevent GUI freeze when offline. The update process now immediately fails if no internet connection is detected.
+# PATCHED_BY_SCRIPT_VERSION: v3.5.32 | Fixed a crash that could occur during the transition between Phase 1 and Phase 2 of the 'Get Info' process by improving thread handle cleanup.
 
 # -*- coding: utf-8 -*-
 
@@ -70,7 +70,7 @@ def get_resource_path(relative_path):
 
 # ---- Global variables from original script
 # ---- These will be managed as instance attributes in the main class
-APP_VERSION = "v3.1.3"
+APP_VERSION = "v3.1.4"
 APP_TITLE = "Kodi TextureTool"
 APP_AUTHOR = "Chris Bertrand"
 BUILD_DATE = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
@@ -779,6 +779,7 @@ class TextureToolApp(QMainWindow):
         self.open_compile_on_complete = True
         self.open_pdf_on_complete = True
         self.log_on_top = True
+        self.decompile_on_top = False
 
         self.check_for_updates_on_startup = True
         from PySide6.QtCore import QStandardPaths
@@ -842,6 +843,8 @@ class TextureToolApp(QMainWindow):
         self.decompile_input_file, self.decompile_output_folder, self.compile_input_folder, self.compile_output_file = "", "", "", ""
         self.aDiagnosticMessages = []
         self.update_action = None
+        self.install_runtimes_action = None
+        self.reinstall_runtimes_action = None
         self.vcredist_checks_passed = False # Pre-initialize attribute to prevent crash
         self.update_thread, self.update_worker = None, None
         self.update_check_complete.connect(self._handle_update_ui)
@@ -1020,10 +1023,7 @@ class TextureToolApp(QMainWindow):
             self._show_vcredist_notification()
 
         # --- THE FIX: Update the menu item's state NOW ---
-        if self.update_action:
-            self.update_action.setEnabled(self.vcredist_checks_passed)
-            if self.vcredist_checks_passed:
-                self.update_action.setToolTip("Manually check for new application updates")
+        self._update_runtime_menu_actions_state()
 
         self._add_diagnostic_message("[INFO] Set DEV hot key sequence... Complete")
         self._add_diagnostic_message('[INFO] To enable DEV Mode press and hold the keyboard sequence: "Shift" > "Alt" > "D"')
@@ -1182,8 +1182,8 @@ class TextureToolApp(QMainWindow):
             label.setProperty("state", "unselected")
 
         left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.left_panel_layout = QVBoxLayout(left_widget)
+        self.left_panel_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         logo_container_widget = QWidget()
         top_layout = QHBoxLayout(logo_container_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
@@ -1289,17 +1289,26 @@ class TextureToolApp(QMainWindow):
         self.help_support_btn.clicked.connect(self._submit_log)
         self.decompile_clear_btn.clicked.connect(self._clear_decompile_selections)
         self.compile_clear_btn.clicked.connect(self._clear_compile_selections)
+
         logo_container_widget.setMinimumHeight(320)
-        left_layout.addWidget(logo_container_widget)
-        left_layout.addWidget(self.decompile_box)
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        left_layout.addWidget(separator)
-        left_layout.addWidget(self.compile_box)
-        left_layout.addLayout(options_layout)
-        left_layout.addWidget(self.status_label)
-        left_layout.addWidget(self.progress_bar)
+        self.left_panel_layout.addWidget(logo_container_widget)
+
+        self.separator_between_modes = QFrame()
+        self.separator_between_modes.setFrameShape(QFrame.Shape.HLine)
+        self.separator_between_modes.setFrameShadow(QFrame.Shadow.Plain)
+
+        if self.decompile_on_top:
+            self.left_panel_layout.addWidget(self.decompile_box)
+            self.left_panel_layout.addWidget(self.separator_between_modes)
+            self.left_panel_layout.addWidget(self.compile_box)
+        else:
+            self.left_panel_layout.addWidget(self.compile_box)
+            self.left_panel_layout.addWidget(self.separator_between_modes)
+            self.left_panel_layout.addWidget(self.decompile_box)
+
+        self.left_panel_layout.addLayout(options_layout)
+        self.left_panel_layout.addWidget(self.status_label)
+        self.left_panel_layout.addWidget(self.progress_bar)
 
         return left_widget
     def _create_right_panel(self):
@@ -1942,7 +1951,7 @@ This function is thread-safe. For batch operations, use the log_message_buffer i
 
             # The background process is done. Clean up its handles and unlock the UI.
             self.info_thread, self.info_worker = None, None
-            self.decompile_for_info_thread, self.decompile_for_info_worker = None, None
+            # self.decompile_for_info_thread, self.decompile_for_info_worker = None, None # This is now handled at the start of Phase 2
             self._set_ui_task_active(False)
             self._update_button_states()
 
@@ -2041,11 +2050,7 @@ This function is thread-safe. For batch operations, use the log_message_buffer i
         self._reset_ui_after_task()
 
         # --- THE FIX: Update the menu item's state after successful installation ---
-        if self.update_action:
-            self.update_action.setEnabled(self.vcredist_checks_passed)
-            if self.vcredist_checks_passed:
-                self.update_action.setToolTip("Manually check for new application updates")
-
+        self._update_runtime_menu_actions_state()
         self._update_button_states() # Update button states based on new vcredist status
 
     def _reload_all(self):
@@ -2258,6 +2263,12 @@ This function is thread-safe. For batch operations, use the log_message_buffer i
         self.log_position_action.setChecked(self.log_on_top)
         self.log_position_action.triggered.connect(self._toggle_log_previewer_position)
         display_menu.addAction(self.log_position_action)
+        self.swap_groups_action = QAction("Show Compile Mode on Top", self)
+        self.swap_groups_action.setToolTip("Display the Compile Mode group at the top of the panel.")
+        self.swap_groups_action.setCheckable(True)
+        self.swap_groups_action.setChecked(not self.decompile_on_top)
+        self.swap_groups_action.triggered.connect(self._toggle_compile_decompile_position)
+        display_menu.addAction(self.swap_groups_action)
         display_menu.addSeparator()
         reset_geometry_action = QAction(qta.icon('fa5s.window-restore'), "Reset Window Position", self)
         reset_geometry_action.setToolTip("Reset the main window size and position to the default")
@@ -2276,11 +2287,15 @@ This function is thread-safe. For batch operations, use the log_message_buffer i
         self.update_check_on_startup_action.setChecked(self.check_for_updates_on_startup)
         self.update_check_on_startup_action.triggered.connect(self._toggle_update_check_on_startup)
         options_menu.addAction(self.update_check_on_startup_action)
-        install_runtimes_action = QAction("&Install Runtimes", self)
-        install_runtimes_action.setToolTip("Install the required Visual C++ 2010 Runtimes (requires administrator)")
-        install_runtimes_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
-        install_runtimes_action.triggered.connect(self._install_runtimes)
-        options_menu.addAction(install_runtimes_action)
+        options_menu.addSeparator()
+        self.install_runtimes_action = QAction("&Install Runtimes", self)
+        self.install_runtimes_action.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
+        self.install_runtimes_action.triggered.connect(self._install_runtimes)
+        options_menu.addAction(self.install_runtimes_action)
+        self.reinstall_runtimes_action = QAction("&Reinstall Runtimes", self)
+        self.reinstall_runtimes_action.setIcon(qta.icon('fa5s.sync-alt'))
+        self.reinstall_runtimes_action.triggered.connect(self._install_runtimes)
+        options_menu.addAction(self.reinstall_runtimes_action)
         help_menu = menu_bar.addMenu("&Help")
         about_action = QAction(qta.icon('fa5s.info-circle'), "&About", self)
         about_action.setToolTip("Show application information")
@@ -2564,6 +2579,7 @@ start "" /d "%APP_DIR%\\.." "%APP_DIR%\\..\\%APP_EXE_TO_KILL%"
         self.open_pdf_on_complete = self.config.getboolean('Settings', 'open_pdf_on_complete', fallback=True)
         self.check_for_updates_on_startup = self.config.getboolean('Settings', 'check_for_updates_on_startup', fallback=True)
         self.log_on_top = self.config.getboolean('Settings', 'log_on_top', fallback=True)
+        self.decompile_on_top = self.config.getboolean('Settings', 'decompile_on_top', fallback=False)
         self.dev_update_url = self.config.get('Settings', 'dev_update_url', fallback='https://raw.githubusercontent.com/kittmaster/KodiTextureTool/main/version.json')
     def _save_settings(self):
         """Saves current settings to the config file."""
@@ -2575,6 +2591,7 @@ start "" /d "%APP_DIR%\\.." "%APP_DIR%\\..\\%APP_EXE_TO_KILL%"
         self.config.set('Settings', 'open_pdf_on_complete', str(self.open_pdf_on_complete))
         self.config.set('Settings', 'check_for_updates_on_startup', str(self.check_for_updates_on_startup))
         self.config.set('Settings', 'log_on_top', str(self.log_on_top))
+        self.config.set('Settings', 'decompile_on_top', str(self.decompile_on_top))
         self.config.set('Settings', 'dev_update_url', str(self.dev_update_url))
         with open(self.config_path, 'w', encoding='utf-8') as configfile:
             self.config.write(configfile)
@@ -3664,6 +3681,53 @@ Processes the entire log buffer in a single, efficient operation to prevent UI f
         except (socket.error, TimeoutError) as ex:
             self._log_message(f"[INFO] Network availability check failed: {ex}")
             return False
+    def _toggle_compile_decompile_position(self):
+        """Swaps the compile and decompile group boxes based on the menu checkbox state."""
+        self.decompile_on_top = not self.swap_groups_action.isChecked()
+        self._save_settings()
+        self._log_message(f"[INFO] Compile/Decompile group position swapped. Compile mode is now on {'top' if not self.decompile_on_top else 'bottom'}.")
+
+        # The widgets are parented to the layout, which manages their memory.
+        # We just need to re-order them. We can do this by taking them out and
+        # re-inserting them at specific positions. The logo is at index 0.
+
+        # Taking widgets out of a layout doesn't delete them, just removes them from view management.
+        self.left_panel_layout.removeWidget(self.decompile_box)
+        self.left_panel_layout.removeWidget(self.compile_box)
+        self.left_panel_layout.removeWidget(self.separator_between_modes)
+
+        # Re-add them in the new order. insertWidget adds them back under layout control.
+        # Index 1 is right after the logo.
+        if self.decompile_on_top:
+            self.left_panel_layout.insertWidget(1, self.decompile_box)
+            self.left_panel_layout.insertWidget(2, self.separator_between_modes)
+            self.left_panel_layout.insertWidget(3, self.compile_box)
+        else:
+            self.left_panel_layout.insertWidget(1, self.compile_box)
+            self.left_panel_layout.insertWidget(2, self.separator_between_modes)
+            self.left_panel_layout.insertWidget(3, self.decompile_box)
+    def _update_runtime_menu_actions_state(self):
+        """Updates the enabled state and tooltips of runtime-related menu items."""
+        if self.update_action:
+            self.update_action.setEnabled(self.vcredist_checks_passed)
+            if self.vcredist_checks_passed:
+                self.update_action.setToolTip("Manually check for new application updates")
+            else:
+                self.update_action.setToolTip("Disabled. Requires the VC++ Runtimes to be installed.")
+
+        if self.install_runtimes_action:
+            self.install_runtimes_action.setEnabled(not self.vcredist_checks_passed)
+            if self.vcredist_checks_passed:
+                self.install_runtimes_action.setToolTip("Runtimes are already installed.")
+            else:
+                self.install_runtimes_action.setToolTip("Install the required Visual C++ 2010 Runtimes (requires administrator).")
+
+        if self.reinstall_runtimes_action:
+            self.reinstall_runtimes_action.setEnabled(self.vcredist_checks_passed)
+            if self.vcredist_checks_passed:
+                self.reinstall_runtimes_action.setToolTip("Force a reinstallation of the runtimes (for repair).")
+            else:
+                self.reinstall_runtimes_action.setToolTip("Runtimes must be installed first before they can be reinstalled.")
     
 class ChangelogDialog(QDialog):
 

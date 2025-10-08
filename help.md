@@ -13,7 +13,7 @@ For the tool to function correctly, a specific version of the Microsoft Visual C
 </p>
 
 -   **Symptom of Missing Runtimes:** If you try to decompile a `.xbt` file and the output folder is empty, you are missing this component.
--   **How to Install:** The installer is included with the application. Simply go to the **Display -> Install Runtimes** menu option. This will request administrator permission to install the necessary files. This only needs to be done once.
+-   **How to Install:** The installer is included with the application. Simply go to the **Options -> Install Runtimes** menu option. This will request administrator permission to install the necessary files. This only needs to be done once.
 
 ---
 
@@ -25,8 +25,8 @@ The application is divided into two main sections on the left, a log viewer on t
   <img src="assets/MainImage.png" alt="Kodi TextureTool Main Interface" width="900" style="max-width: 100%; border: 1px solid #434c5e; border-radius: 4px;">
 </p>
 
--   **Decompile Mode:** Used for extracting images from a `.xbt` file.
 -   **Compile Mode:** Used for packing a folder of images into a new `.xbt` file.
+-   **Decompile Mode:** Used for extracting images from a `.xbt` file.
 -   **Log Viewer:** Displays a real-time log of all operations, warnings, and errors.
 -   **Image Previewer:** Allows you to view the images inside a `.xbt` file after running "Get Info".
 -   **Help Dialog:** Accessed via **Help -> View Help File**, this searchable guide includes a table of contents, font controls, and Markdown rendering.
@@ -158,7 +158,8 @@ This menu controls the application's appearance and behavior after tasks are com
 *   **Open ... on Completion:**
     *   `Open Decompile/Compile Folder...`: Toggle whether the output folder is automatically opened after a successful operation.
     *   `Open PDF Report...`: Toggle whether a generated PDF gallery is automatically opened after a successful export.
-*   **Log Window on Top:** Toggles the vertical position of the Log Viewer and the Image Previewer.
+*   **Swap Log Viewer/Image Previewer Position:** Toggles the vertical position of the Log Viewer and the Image Previewer.
+*   **Show Compile Mode on Top:** Toggles the layout of the main panel. By default, this is checked and Compile Mode is shown first. Uncheck it to show Decompile Mode on top.
 *   **Reset Window Position:** If the application window gets lost off-screen or improperly sized, this will reset it to the center of your primary monitor.
 *   **Clear Event Log:** Clears all messages from the Log Viewer panel.
 
@@ -170,7 +171,8 @@ This menu allows you to configure application startup behavior.
 </p>
 
 *   **Check for Updates on Startup:** Toggle whether the application automatically checks for a new version every time it is launched.
-*   **Install Runtimes:** The critical function for installing the required Visual C++ runtimes. For more information, see the [Critical Requirement: Runtimes](#runtimes-anchor) section.
+*   **Install Runtimes:** The critical function for installing the required Visual C++ runtimes. This option is enabled only if the runtimes are not detected.
+*   **Reinstall Runtimes:** Allows you to run the installer again to repair a corrupt installation. This option is enabled only if the runtimes are already detected.
 
 ### Help Menu
 Access documentation, support resources, and version information.
@@ -238,7 +240,7 @@ This tool stands on the shoulders of giants and would not be possible without th
 ## 9. Troubleshooting {#troubleshooting-anchor}
 
 ### The decompile process finishes, but the output folder is empty.
-This is the most common issue and is almost always caused by the missing **Visual C++ 2010 (x86) Runtimes**. Please see the [Critical Requirement: Runtimes](#runtimes-anchor) section of this guide and use the **Display -> Install Runtimes** menu option to resolve it.
+This is the most common issue and is almost always caused by the missing **Visual C++ 2010 (x86) Runtimes**. Please see the [Critical Requirement: Runtimes](#runtimes-anchor) section of this guide and use the **Options -> Install Runtimes** menu option to resolve it.
 
 ### How do I report an issue or get support?
 The best way to get help is by using the tools provided in the [Log Viewer](#log-viewer-anchor) section. The **Help/Support** button is your primary tool. Clicking it will:
