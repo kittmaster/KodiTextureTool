@@ -14,7 +14,7 @@
 	"- 🐉 Added context menu to gallery: Save image, save path, open file location.",
 	"- 🐉 Added additional image meta: Size of, image in gallery.",
 	"- 🐉 Fixed PDF generation issue with frames overlapping footer.",
-	"- 🐉 Added multiple pdf export options: All, filtered, single.	",
+	"- 🐉 Added multiple pdf export options: All, filtered, single.",
 
 	"- v3.1.4 - Patch Release",
 	"- 🐉 Inverted the checkmark logic for the group position swap option to be more intuitive.",
