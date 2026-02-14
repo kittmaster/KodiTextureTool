@@ -1,8 +1,21 @@
 {
-"latest_version": "v3.1.4",
-"release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.4",
-"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.4/Kodi.TextureTool-v3.zip",
+"latest_version": "v3.1.6",
+"release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.6",
+"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.6/Kodi.TextureTool-v3.zip",
 "changelog": [
+	"- v3.1.6 - Patch Release",
+	"- 🐉 Repaired help file item tree and rendering. Vertical splitter enabled.",
+	"- 🐉 Tested using 218MB texture file to ensure stability.",
+	"- 🐉 Found secondary race condition in stream IO and resolving hard app crash.",
+
+	"- v3.1.5 - Patch Release",
+	"- 🐉 Found additional race condition and resolved it preventing app crash.",
+	"- 🐉 Added keyboard navigation for image gallery for zooming and scrolling.",
+	"- 🐉 Added context menu to gallery: Save image, save path, open file location.",
+	"- 🐉 Added additional image meta: Size of, image in gallery.",
+	"- 🐉 Fixed PDF generation issue with frames overlapping footer.",
+	"- 🐉 Added multiple pdf export options: All, filtered, single.	",
+
 	"- v3.1.4 - Patch Release",
 	"- 🐉 Inverted the checkmark logic for the group position swap option to be more intuitive.",
 	"- 🐉 Added a pre-emptive network check to prevent GUI freeze when offline. The update process now immediately fails if no internet connection is detected.",
