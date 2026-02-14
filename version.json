@@ -1,7 +1,7 @@
 {
 "latest_version": "v3.1.6",
 "release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.6",
-"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.6/Kodi.TextureTool-v3.zip",
+"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.6/Kodi.TextureTool-v3.1.6.zip",
 "changelog": [
 	"- v3.1.6 - Patch Release",
 	"- 🐉 Repaired help file item tree and rendering. Vertical splitter enabled.",
