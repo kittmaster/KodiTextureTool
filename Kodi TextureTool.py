@@ -26,10 +26,12 @@ from bs4.element import Tag
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, quote
 import platform
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # ---- Global variables from original script
 # ---- These will be managed as instance attributes in the main class
-APP_VERSION = "v3.1.6"
+APP_VERSION = "v3.1.7"
 APP_TITLE = "Kodi TextureTool"
 APP_AUTHOR = "Chris Bertrand"
 BUILD_DATE = datetime.now().strftime("%m-%d-%Y %H:%M:%S")
@@ -2418,6 +2420,14 @@ This function is thread-safe. For batch operations, use the log_message_buffer i
         help_action.setToolTip("Open the detailed help documentation")
         help_action.triggered.connect(self._show_help_dialog)
         help_menu.addAction(help_action)
+        kodi_forum_action = QAction(qta.icon('fa5s.users'), "Kodi Forum Link", self)
+        kodi_forum_action.setToolTip("Open the official Kodi support forum thread")
+        kodi_forum_action.triggered.connect(lambda: webbrowser.open("https://forum.kodi.tv/showthread.php?tid=382565"))
+        help_menu.addAction(kodi_forum_action)
+        github_action = QAction(qta.icon('fa5b.github'), "GitHub Link", self)
+        github_action.setToolTip("Open the project's GitHub repository")
+        github_action.triggered.connect(lambda: webbrowser.open("https://github.com/kittmaster/KodiTextureTool"))
+        help_menu.addAction(github_action)
         help_menu.addSeparator()
         self.update_action = QAction("&Check for Updates...", self)
         self.update_action.setIcon(qta.icon('fa5s.cloud-download-alt'))
@@ -2431,6 +2441,8 @@ This function is thread-safe. For batch operations, use the log_message_buffer i
         self.dev_update_action.setVisible(False)
         self.dev_update_action.triggered.connect(self._check_for_updates_dev)
         help_menu.addAction(self.dev_update_action)
+
+
     def _compare_versions(self, version1, version2):
         def _normalize(v):
             try: return [int(p) for p in v.lstrip('v').split('.')]

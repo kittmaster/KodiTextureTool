@@ -1,8 +1,11 @@
 {
-"latest_version": "v3.1.6",
-"release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.6",
-"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.6/Kodi.TextureTool-v3.1.6.zip",
+"latest_version": "v3.1.7",
+"release_url": "https://github.com/kittmaster/KodiTextureTool/releases/tag/v3.1.7",
+"update_package_url": "https://github.com/kittmaster/KodiTextureTool/releases/download/v3.1.7/KodiTextureTool_Release_v3.1.7.zip",
 "changelog": [
+	"- v3.1.7 - Patch Release",
+	"- 🐉 Add GitHub and Kodi Forum links to the help menu per request (rafikW).",
+	
 	"- v3.1.6 - Patch Release",
 	"- 🐉 Repaired help file item tree and rendering. Vertical splitter enabled.",
 	"- 🐉 Tested using 218MB texture file to ensure stability.",

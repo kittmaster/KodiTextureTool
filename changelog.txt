@@ -1,5 +1,8 @@
 <pre style="color: #d8dee9; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif; padding-left: 10px;">
 
+<span style="color: #88c0d0; font-weight: bold;">   v3.1.7 - Patch Release</span>
+	- 🐉 Add GitHub and Kodi Forum links to the help menu per request (rafikW).
+
 <span style="color: #88c0d0; font-weight: bold;">   v3.1.6 - Patch Release</span>
 	- 🐉 Repaired help file item tree and rendering. Vertical splitter enabled.
 	- 🐉 Tested using 218MB texture file to ensure stability.
