@@ -1,43 +1,95 @@
-<pre style="color: #d8dee9; line-height: 1.3; font-family: 'Segoe UI', Arial, sans-serif; padding-left: 10px;">
+v3.2.0 - Security, Stability & Interface Release
+	- NOTE: v3.2.0 is the new support baseline. Versions prior to this are no longer supported.
+	- NOTE: This release changes how the app looks and adds a number of things it now remembers between runs. Nothing about compiling or decompiling has changed.
+	- ⚠️ IMPORTANT: Operations that silently failed before are now correctly reported as errors. If you suddenly see an error where the tool used to say "complete", the operation was already failing - it just was not being detected.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.7 - Patch Release</span>
+	Security & Stability
+	- 🐉 FIXED: Images whose file extension was uppercase (for example .PNG instead of .png) were silently left out of the compiled .xbt. The compiler only recognises lowercase extensions, gave no warning, and reported the compile as complete. The tool now detects these before compiling and offers to handle them for you, without altering your source folder.
+	- 🐉 FIXED: A compile that packed only some of your images was reported as "complete". The number of images packed is now checked against what the source folder actually contains, and a short count is reported as a failure with your existing .xbt left untouched.
+	- 🐉 FIXED: The application could crash outright, with no error message, while finishing a task. It was most often seen on Get Info, which starts two background jobs in a row, but every operation was affected. Internal cleanup was destroying a background job while it was still running; jobs are now released only once they have genuinely stopped. This is the cause of the intermittent crashes reported since v3.1.x.
+	- 🐉 IMPROVED: 'Get Info' on a large texture file is roughly three times faster and the window stops responding for a much shorter time. On a 7,584-texture file the freeze went from about 2.8 seconds to about 1 second. The tool was checking every extracted image on disk twice while it parsed, which is now done once at the end.
+	- 🐉 FIXED: The application could freeze permanently -- window unresponsive, no error, requiring Task Manager -- while starting a task shortly after another had finished. It was most likely on repeated 'Get Info' runs. Two internal locks could be taken in opposite orders and wait on each other forever; background jobs are now cleaned up on the main thread, so that cannot happen.
+	- 🐉 SECURITY: Restored HTTPS certificate verification. It had been disabled for all network traffic, which left the auto-updater open to a man-in-the-middle attack replacing the update package.
+	- 🐉 SECURITY: Update packages are now verified with a SHA-256 checksum before installation. A corrupted or tampered download is discarded.
+	- 🐉 SECURITY: Fixed a command-injection flaw. File and folder names containing shell characters (&, |, ^, quotes) could execute arbitrary commands. Paths are no longer passed through a command shell.
+	- 🐉 SECURITY: Hardened the updater. Update files are now staged outside the installation folder, paths are validated before use, and the temporary workspace is cleaned up properly on exit.
+	- 🐉 FIXED: Auto-update was pointing at a download address that did not exist, so every update attempt failed. The release process now verifies the published link before publishing.
+	- 🐉 FIXED: The Visual C++ 2010 runtime check only recognised one exact English product name and build number. Other builds and non-English versions of Windows were incorrectly told the runtime was missing, which disabled compiling, decompiling and updates entirely.
+	- 🐉 FIXED: The app could hang forever with a locked interface when processing texture files that produced a lot of warnings. Output streams are now read concurrently.
+	- 🐉 FIXED: A failed compile no longer erases your existing .xbt file. The new file is only put in place after the compile genuinely succeeds.
+	- 🐉 FIXED: Compiling from a folder with no usable images no longer overwrites your .xbt with an empty 9-byte file.
+	- 🐉 FIXED: Decompile and compile failures are now detected and reported instead of showing "complete" and opening an empty folder.
+	- 🐉 FIXED: Texture names containing accented or non-English characters now display correctly in the log and progress bar.
+	- 🐉 FIXED: Zooming in the texture previewer no longer permanently degrades the image. Each step is rendered from the original texture, so zooming out and back in returns to a sharp image.
+	- 🐉 FIXED: The application now shuts down cleanly while a task or download is still running, instead of risking a crash on exit.
+	- 🐉 FIXED: The "Dimensions" search filter was empty and did nothing whenever texture information had to be recovered by scanning the cache folder.
+	- 🐉 FIXED: A folder chosen by drag-and-drop and the same folder chosen through Browse were treated as two different entries, so it appeared twice in the Recent menus. Existing duplicates are cleaned up automatically.
+	- 🐉 FIXED: Opening a recent file or folder that has since been moved or deleted no longer risks an error.
+	- 🐉 FIXED: Timestamps and dates in the log are colour-coded again.
+	- 🐉 FIXED: "Build Date" in the About dialog now shows when the build was made, not when you started the app.
+	- 🐉 FIXED: Each update check leaked a network connection and permanently shortened the timeout for every later network operation in the session.
+	- 🐉 IMPROVED: Failures the tool used to swallow silently are now recorded in the log file. Nothing new appears on screen, but problems that previously left no trace can now be diagnosed from a user's log.
+	- ⚠️ KNOWN ISSUE: Folder paths containing non-English characters are not supported by the underlying texture tools. This now reports an error instead of silently producing an empty result. A fix requires changes to the C++ components.
+
+	Interface & Reporting
+	- ✨ NEW: The interface has been rebuilt as "Glass Midnight Navy" - a frosted, translucent look over a deep navy gradient, replacing the flat grey theme. There is one theme, as before; there is no theme switcher to configure.
+	- 🐉 FIXED: Zooming into a texture did nothing above 1.2x. Any texture small enough to fit the preview pane was snapped back to its own size on every step, while the zoom readout carried on counting to 2.5x, 5x and 8x over a picture that had not changed. Zoom now magnifies up to 8x, and the readout can no longer report a magnification the picture does not have.
+	- ✨ NEW: The previewer pans. A magnified texture used to be cropped to its centre with no way to reach its edges; scroll bars now appear and the image can be moved around.
+	- 🐉 FIXED: The window's controls jumped sideways on every zoom step past roughly 6x.
+	- ✨ NEW: The zoom level stays put as you move between textures. Zoom to 3x and step through the archive and every texture is shown at three times its fit size, so they can be compared at a fixed magnification. "Fit to Window" returns to normal. Resizing the window or dragging the divider while zoomed now re-fits the preview and keeps your magnification.
+	- 🐉 IMPROVED: Magnified textures are upscaled more cleanly. There will always be artifacts at high magnification - the detail is not in the file - but the image stays readable rather than turning to mush.
+	- 🐉 FIXED: PDF reports lost any artwork drawn in white or another pale colour. It was being placed on a near-white backing, which left it effectively invisible. Every image now sits on a checkerboard mat, the way an image editor shows transparency: pale artwork and dark artwork both read against it, and it makes clear which parts of a texture are actually transparent.
+	- ✨ NEW: PDF reports can be printed on light or dark paper. Export to PDF ▸ Paper offers "Light (white)", the familiar report, or "Dark (midnight navy)", matching the app, with the artwork carrying much harder on screen. The choice is remembered.
+	- 🐉 IMPROVED: PDF gallery cells are tighter and the pictures larger - every cell had wasted space beneath its text. The transparency mat is drawn at each texture's own size, so a small icon looks small and a wide banner looks wide instead of every asset filling the same frame.
+	- 🐉 FIXED: Long filenames in a PDF report are now shortened in the middle, so the end of the name - and the file extension - survives. The end used to be cut off, which on paths like "subfolder/subfolder/..." removed the only part that told them apart.
+	- 🐉 IMPROVED: Each PDF gallery entry now shows the file size and whether the texture has transparency, and the title page summarises the set: total size, which formats and which dimensions are present, and how many of each.
+	- 🐉 FIXED: "Export to PDF" now opens where you last saved a report. It had been offering the decompile output folder and, when that was not set, the application's own folder.
+	- 🐉 IMPROVED: Your window size, position and both divider bars are now stored in config.ini instead of the Windows registry, so copying that one file takes your layout to another machine with it. An existing layout is imported automatically the first time you run this version.
+	- ✨ NEW: The Update, Changelog and Help windows remember the size you last made them, and open at sensible sizes on a fresh install instead of at their bare minimums.
+	- 🐉 FIXED: The update window's release notes no longer clip. They were capped at a fixed height, so enlarging the window did not enlarge the notes.
+	- ✨ NEW: Also remembered between runs: your PDF paper choice, the "Search by" criterion and the previewer's zoom level.
+	- 🐉 IMPROVED: A layout saved on a large monitor and opened on a smaller one is scaled to fit, and a window that would open off-screen is brought back to the centre. "Reset Window Size & Position" clears the remembered dialog sizes too.
+
+v3.1.7 - Patch Release
+	- v3.1.7 - Patch Release - *** THIS MUST BE MANUALLY DOWNLOADED AND INSTALLED. ***
+	- NOTE: 3.1.6 and previous versions have expired certs and will not be able to download, manual update REQUIRED. Fixed for 3.1.7 and forward.
 	- 🐉 Add GitHub and Kodi Forum links to the help menu per request (rafikW).
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.6 - Patch Release</span>
+v3.1.6 - Patch Release
 	- 🐉 Repaired help file item tree and rendering. Vertical splitter enabled.
 	- 🐉 Tested using 218MB texture file to ensure stability.
-	- 🐉 Found secondary race condition in stream IO and resolving hard app crash.	
-	
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.5 - Patch Release</span>
+	- 🐉 Found secondary race condition in stream IO and resolving hard app crash.
+
+v3.1.5 - Patch Release
 	- 🐉 Found additional race condition and resolved it preventing app crash.
 	- 🐉 Added keyboard navigation for image gallery for zooming and scrolling.
 	- 🐉 Added context menu to gallery: Save image, save path, open file location.
 	- 🐉 Added additional image meta: Size of, image in gallery.
 	- 🐉 Fixed PDF generation issue with frames overlapping footer.
-	- 🐉 Added multiple pdf export options: All, filtered, single.	
+	- 🐉 Added multiple pdf export options: All, filtered, single.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.4 - Patch Release</span>
+v3.1.4 - Patch Release
 	- 🐉 Inverted the checkmark logic for the group position swap option to be more intuitive.
 	- 🐉 Added a pre-emptive network check to prevent GUI freeze when offline. The update process now immediately fails if no internet connection is detected.
 	- 🐉 Compile and decompile modules can now swap positions.
 	- 🐉 Fixed race condition between phase 1 and phase 2 of get info causing app crash.
-	
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.3 - Patch Release</span>
+
+v3.1.3 - Patch Release
 	- 🐉 Restored pixel data in the default BGRA order in compiler.
-	- 🐉 Explicitly writes the 'magic' legacy format code 0x10 into the .xbt header.	
-	
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.2 - Initial Release</span>
+	- 🐉 Explicitly writes the 'magic' legacy format code 0x10 into the .xbt header.
+
+v3.1.2 - Initial Release
 	- 🐍 Fixed a critical bug where the auto-updater would corrupt the installation.
 	- 🐍 Added validation for recent files to prevent crashes.
 	- 🐍 Fixed changelog and version dialog parser to respect line breaks.
 	- 🐍 Fixed GUI lock if no internet connection is present.
-	- 🐍 Replaced generic icons for updater systray notifications.	
+	- 🐍 Replaced generic icons for updater systray notifications.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.1 - Beta Release</span>
+v3.1.1 - Beta Release
 	- 🐍 Updated progress bar method from event loop flooding causing a buffer overrun.
 	- 🐍 Added "Reload All" fix path verification before load and discard invalid paths.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.1.0 - Alpha 2 Release</span>
+v3.1.0 - Alpha 2 Release
 	- 🖼️ Added image previewer with navigation, metadata, and double-click open.
 	- 🔍 Implemented search bar with match tracking and wraparound navigation.
 	- 📄 Introduced PDF export with gallery layout and Kodi branding.
@@ -69,10 +121,9 @@
 	- 🧼 Deprecated modes removed & improved .xbt status updates.
 	- 📁 Moves working files to system `\temp` for cleanup on exit.
 
-<span style="color: #88c0d0; font-weight: bold;">   v3.0.2 - Alpha 1 Release</span>
+v3.0.2 - Alpha 1 Release
 	- 🐍 Converted original AutoIt script to Python and PySide6.
 	- 🌘 Modernized UI with a dark theme and Nord color palette.
 	- 🛠️ Replaced system calls with robust subprocess handling.
 	- 🧵 Introduced background threading for all long-running tasks.
 	- 🧾 Added comprehensive logging to GUI and file.
-</pre>
