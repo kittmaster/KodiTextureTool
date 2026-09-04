@@ -1,4 +1,4 @@
-## <p align="center"><ins><strong>🎨 Texture Tool for Kodi 2025+</strong></ins></p>
+## <p align="center"><ins><strong>🎨 Texture Tool for Kodi 2026+</strong></ins></p>
 
 <p align="center">
   <img width="120" src="https://github.com/kittmaster/KodiTextureTool/blob/main/assets/kodi_logo_1024.png" alt="Kodi Texture Tool Icon">
@@ -14,16 +14,29 @@
 
 ### 🔧 Features
 
+**Current release: v3.2.0 — Security, Stability & Interface**
+
+- 🔒 HTTPS certificate verification restored for the auto-updater, with SHA-256 checksum verification on every downloaded update
+- 🛡️ Command-injection flaw fixed — file/folder paths are no longer passed through a shell
+- 🐛 Multiple crash/freeze fixes (background job cleanup races, silent Get Info crashes, hangs on heavy-warning texture files)
+- ⚠️ Operations that used to silently report "complete" while actually failing (uppercase-extension images skipped, partial compiles, empty output) are now detected and reported as errors
+- ⚡ "Get Info" is roughly 3x faster on large texture files
+- 🌌 New **"Glass Midnight Navy"** interface — a frosted, translucent theme over a deep navy gradient, replacing the earlier flat grey/Nord look
+- 🔎 Image previewer now zooms up to **8x with panning**, instead of cropping to a fixed center
+- 💾 Window size/position, divider positions, zoom level, PDF paper choice, and dialog sizes are all remembered between runs via `config.ini`
+- 📄 PDF export now supports **light or dark paper** themes, with a checkerboard transparency mat so pale artwork is never invisible
+
+**Core feature set**
+
 - 🌐 Unicode-aware logic for filenames, metadata, and UI
 - 🈚 Enables seamless handling of non-ASCII characters, emoji glyphs, and multilingual assets
 - 🧾 Prevents corruption, fallback artifacts, and encoding mismatches across platforms
 - ✅ Fully rewritten in Python using **PySide6** for modern GUI skinning
-- 🧠 Intuitive, **Nord-inspired dark theme** with dynamic color-coded logging
 - 🪟 Familiar Windows-style **menu system** with categorized recent items
-- 🕘 Intelligent **Recent Files/Folders** tracking with reload and clear options
+- 🕘 Intelligent **Recent Files/Folders** tracking (last 8) with reload and clear options
 - 🔐 **Interlocked execution** prevents invalid output without required runtimes
-- 📦 Includes **silent Visual C++ 2010 x86 runtime installer** with UAC elevation
-- ✨ Robust **log viewer** with HTML formatting and clipboard export
+- 📦 Includes **silent Visual C++ 2010 x86 runtime installer** with UAC elevation, and auto-detects whether it needs installing or reinstalling
+- ✨ Robust **log viewer** with HTML formatting, color-coded messages, and clipboard export
 - 🗺️ Streamlined **GUI layout** with drag-and-drop support for files and folders
 - 📋 Viewable **local changelog** and **Markdown-based help system**
 - 🚫 No installer needed — fully **portable folder mode**
